@@ -186,7 +186,9 @@ const audio = (() => {
 
                 try {
                     oscillator.stop(audioContext.currentTime + 0.025);
-                } catch {}
+                } catch {
+                    // move on
+                }
 
                 oscillator.addEventListener(
                     'ended',
@@ -254,7 +256,9 @@ const audio = (() => {
 
                 try {
                     oscillator.stop(Math.max(now + 0.02, startTime));
-                } catch {}
+                } catch {
+                    // move on
+                }
             },
         };
 
