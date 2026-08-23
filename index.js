@@ -1,1066 +1,1202 @@
-"use strict";
+'use strict';
 
 const DEFAULT_A4 = 440;
-
-const PICK_STATS_KEY = "pitchPlayground.pickStats.v7";
-
+const DEFAULT_MIDI = 69;
+const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_ADVANCE_DELAY = 3000;
-
-const NOTE_NAMES = [
-  "C",
-  "C♯ / D♭",
-  "D",
-  "D♯ / E♭",
-  "E",
-  "F",
-  "F♯ / G♭",
-  "G",
-  "G♯ / A♭",
-  "A",
-  "A♯ / B♭",
-  "B",
-];
-
 const MASTER_GAIN = 0.55;
 const VOICE_GAIN = 0.16;
 
-let audioContext = null;
-let masterGain = null;
-
-let tunerVoice = null;
-
-const transientVoices = new Set();
-
-function element(id) {
-  return document.getElementById(id);
-}
-
-function numberValue(input, fallback) {
-  const value = Number(input.value);
-
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function positiveNumberValue(input, fallback) {
-  const value = numberValue(input, fallback);
-
-  return value > 0 ? value : fallback;
-}
+const NOTE_NAMES = [
+    'C',
+    'C♯ / D♭',
+    'D',
+    'D♯ / E♭',
+    'E',
+    'F',
+    'F♯ / G♭',
+    'G',
+    'G♯ / A♭',
+    'A',
+    'A♯ / B♭',
+    'B',
+];
 
 function clamp(value, minimum, maximum) {
-  return Math.min(maximum, Math.max(minimum, value));
+    return Math.min(maximum, Math.max(minimum, value));
 }
 
-function signed(value, decimals = 1) {
-  return `${value >= 0 ? "+" : ""}` + value.toFixed(decimals);
+function readNumber(input, fallback) {
+    const value = Number(input.value);
+
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    const minimum = input.hasAttribute('min')
+        ? Number(input.getAttribute('min'))
+        : -Infinity;
+
+    const maximum = input.hasAttribute('max')
+        ? Number(input.getAttribute('max'))
+        : Infinity;
+
+    return clamp(value, minimum, maximum);
+}
+
+function signed(value, decimalPlaces = 1) {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(decimalPlaces)}`;
 }
 
 function frequencyFromCents(referenceHz, cents) {
-  return referenceHz * 2 ** (cents / 1200);
+    return referenceHz * 2 ** (cents / 1200);
 }
 
 function centsBetween(frequencyHz, referenceHz) {
-  return 1200 * Math.log2(frequencyHz / referenceHz);
+    return 1200 * Math.log2(frequencyHz / referenceHz);
 }
 
 function getA4() {
-  return positiveNumberValue(element("globalA4"), DEFAULT_A4);
+    return readNumber(
+        document.querySelector('[data-control="a4"]'),
+        DEFAULT_A4
+    );
 }
 
 function midiFrequency(midi) {
-  return getA4() * 2 ** ((midi - 69) / 12);
+    return getA4() * 2 ** ((midi - 69) / 12);
 }
 
 function midiToNoteName(midi) {
-  const rounded = Math.round(midi);
-
-  const pitchClass = ((rounded % 12) + 12) % 12;
-
-  const octave = Math.floor(rounded / 12) - 1;
-
-  return NOTE_NAMES[pitchClass] + octave;
-}
-
-//
-// Audio
-//
-
-function ensureAudioContext() {
-  if (!audioContext) {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
-    if (!AudioContextClass) {
-      throw new Error("Web Audio API is unavailable.");
-    }
-
-    audioContext = new AudioContextClass();
-
-    masterGain = audioContext.createGain();
-
-    masterGain.gain.value = MASTER_GAIN;
-
-    masterGain.connect(audioContext.destination);
-  }
-
-  if (audioContext.state === "suspended") {
-    audioContext.resume();
-  }
-
-  return audioContext;
-}
-
-function holdAndRamp(param, target, seconds = 0.015) {
-  const context = ensureAudioContext();
-
-  const now = context.currentTime;
-
-  if (typeof param.cancelAndHoldAtTime === "function") {
-    param.cancelAndHoldAtTime(now);
-  } else {
-    const current = param.value;
-
-    param.cancelScheduledValues(now);
-
-    param.setValueAtTime(current, now);
-  }
-
-  param.linearRampToValueAtTime(target, now + seconds);
-}
-
-function createContinuousTone(frequencyHz, waveform, volume = 1) {
-  const context = ensureAudioContext();
-
-  const oscillator = context.createOscillator();
-
-  const gain = context.createGain();
-
-  oscillator.type = waveform;
-
-  oscillator.frequency.value = frequencyHz;
-
-  gain.gain.value = 0;
-
-  oscillator.connect(gain);
-
-  gain.connect(masterGain);
-
-  oscillator.start();
-
-  holdAndRamp(gain.gain, VOICE_GAIN * clamp(volume, 0, 1));
-
-  let stopped = false;
-
-  return {
-    setFrequency(frequency) {
-      if (stopped) {
-        return;
-      }
-
-      oscillator.frequency.setTargetAtTime(
-        frequency,
-        context.currentTime,
-        0.006,
-      );
-    },
-
-    stop() {
-      if (stopped) {
-        return;
-      }
-
-      stopped = true;
-
-      const now = context.currentTime;
-
-      holdAndRamp(gain.gain, 0);
-
-      try {
-        oscillator.stop(now + 0.025);
-      } catch {}
-
-      oscillator.addEventListener(
-        "ended",
-        () => {
-          oscillator.disconnect();
-          gain.disconnect();
-        },
-        {
-          once: true,
-        },
-      );
-    },
-  };
-}
-
-function playTransientTone(
-  frequencyHz,
-  waveform,
-  durationSeconds,
-  volume = 1,
-  delaySeconds = 0,
-) {
-  const context = ensureAudioContext();
-
-  const oscillator = context.createOscillator();
-
-  const gain = context.createGain();
-
-  const startTime = context.currentTime + delaySeconds;
-
-  const releaseTime = startTime + durationSeconds;
-
-  const targetGain = VOICE_GAIN * clamp(volume, 0, 1);
-
-  oscillator.type = waveform;
-
-  oscillator.frequency.setValueAtTime(frequencyHz, startTime);
-
-  gain.gain.setValueAtTime(0, startTime);
-
-  gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.012);
-
-  gain.gain.setValueAtTime(
-    targetGain,
-    Math.max(startTime + 0.012, releaseTime - 0.015),
-  );
-
-  gain.gain.linearRampToValueAtTime(0, releaseTime);
-
-  oscillator.connect(gain);
-
-  gain.connect(masterGain);
-
-  oscillator.start(startTime);
-
-  oscillator.stop(releaseTime + 0.02);
-
-  let stopped = false;
-
-  const voice = {
-    stop() {
-      if (stopped) {
-        return;
-      }
-
-      stopped = true;
-
-      const now = context.currentTime;
-
-      if (typeof gain.gain.cancelAndHoldAtTime === "function") {
-        gain.gain.cancelAndHoldAtTime(now);
-      } else {
-        const current = gain.gain.value;
-
-        gain.gain.cancelScheduledValues(now);
-
-        gain.gain.setValueAtTime(current, now);
-      }
-
-      gain.gain.linearRampToValueAtTime(0, now + 0.015);
-
-      try {
-        oscillator.stop(Math.max(now + 0.02, startTime));
-      } catch {}
-    },
-  };
-
-  transientVoices.add(voice);
-
-  oscillator.addEventListener(
-    "ended",
-    () => {
-      transientVoices.delete(voice);
-
-      oscillator.disconnect();
-      gain.disconnect();
-    },
-    {
-      once: true,
-    },
-  );
-
-  return voice;
-}
-
-function stopTransientVoices() {
-  for (const voice of [...transientVoices]) {
-    voice.stop();
-  }
-
-  transientVoices.clear();
-}
-
-function stopTuner() {
-  if (!tunerVoice) {
-    return;
-  }
-
-  tunerVoice.stop();
-
-  tunerVoice = null;
-}
-
-function stopAllAudio() {
-  stopTuner();
-  stopTransientVoices();
-}
-
-//
-// Tabs
-//
-
-function initializeTabs() {
-  const buttons = document.querySelectorAll(".tab");
-
-  const panels = document.querySelectorAll(".tab-panel");
-
-  for (const button of buttons) {
-    button.addEventListener("click", () => {
-      stopAllAudio();
-      cancelPlacementAdvance();
-
-      const tabName = button.dataset.tab;
-
-      for (const otherButton of buttons) {
-        const active = otherButton === button;
-
-        otherButton.classList.toggle("active", active);
-
-        otherButton.setAttribute("aria-selected", String(active));
-      }
-
-      for (const panel of panels) {
-        const active = panel.id === `tab-${tabName}`;
-
-        panel.hidden = !active;
-
-        panel.classList.toggle("active", active);
-      }
-    });
-  }
-}
-
-//
-// Notes
-//
-
-function populateNoteSelector(select, defaultMidi) {
-  const options = [];
-
-  for (let midi = 48; midi <= 84; midi += 1) {
-    const option = document.createElement("option");
-
-    option.value = String(midi);
-
-    option.textContent = midiToNoteName(midi);
-
-    options.push(option);
-  }
-
-  select.replaceChildren(...options);
-
-  select.value = String(defaultMidi);
+    const roundedMidi = Math.round(midi);
+    const pitchClass = ((roundedMidi % 12) + 12) % 12;
+    const octave = Math.floor(roundedMidi / 12) - 1;
+
+    return `${NOTE_NAMES[pitchClass]}${octave}`;
 }
 
 function selectedNoteFrequency(select) {
-  return midiFrequency(Number(select.value));
+    return midiFrequency(Number(select.value));
 }
 
-const tunerNote = element("tunerNote");
+// Audio
 
-const placementNote = element("placementNote");
+const audio = (() => {
+    let context = null;
+    let masterGain = null;
 
-const pickNote = element("pickNote");
+    const transientVoices = new Set();
+
+    function ensureContext() {
+        if (!context) {
+            const AudioContextClass =
+                window.AudioContext || window.webkitAudioContext;
+
+            if (!AudioContextClass) {
+                throw new Error('Web Audio API is unavailable.');
+            }
+
+            context = new AudioContextClass();
+
+            masterGain = context.createGain();
+            masterGain.gain.value = MASTER_GAIN;
+            masterGain.connect(context.destination);
+        }
+
+        if (context.state === 'suspended') {
+            void context.resume();
+        }
+
+        return context;
+    }
+
+    function cancelAndHold(parameter, time) {
+        if (typeof parameter.cancelAndHoldAtTime === 'function') {
+            parameter.cancelAndHoldAtTime(time);
+            return;
+        }
+
+        const currentValue = parameter.value;
+
+        parameter.cancelScheduledValues(time);
+        parameter.setValueAtTime(currentValue, time);
+    }
+
+    function fadeTo(parameter, target, seconds = 0.015) {
+        const audioContext = ensureContext();
+        const now = audioContext.currentTime;
+
+        cancelAndHold(parameter, now);
+        parameter.linearRampToValueAtTime(target, now + seconds);
+    }
+
+    function createVoice(frequencyHz, waveform) {
+        const audioContext = ensureContext();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = waveform;
+        oscillator.frequency.value = frequencyHz;
+
+        oscillator.connect(gain);
+        gain.connect(masterGain);
+
+        return {
+            audioContext,
+            oscillator,
+            gain,
+        };
+    }
+
+    function playContinuous(frequencyHz, waveform, volume = 1) {
+        const { audioContext, oscillator, gain } = createVoice(
+            frequencyHz,
+            waveform
+        );
+
+        gain.gain.value = 0;
+
+        oscillator.start();
+
+        fadeTo(gain.gain, VOICE_GAIN * clamp(volume, 0, 1));
+
+        let stopped = false;
+
+        return {
+            setFrequency(frequency) {
+                if (stopped) {
+                    return;
+                }
+
+                oscillator.frequency.setTargetAtTime(
+                    frequency,
+                    audioContext.currentTime,
+                    0.006
+                );
+            },
+
+            stop() {
+                if (stopped) {
+                    return;
+                }
+
+                stopped = true;
+
+                fadeTo(gain.gain, 0);
+
+                try {
+                    oscillator.stop(audioContext.currentTime + 0.025);
+                } catch {}
+
+                oscillator.addEventListener(
+                    'ended',
+                    () => {
+                        oscillator.disconnect();
+                        gain.disconnect();
+                    },
+                    {
+                        once: true,
+                    }
+                );
+            },
+        };
+    }
+
+    function playTransient(
+        frequencyHz,
+        waveform,
+        durationSeconds,
+        volume = 1,
+        delaySeconds = 0
+    ) {
+        const { audioContext, oscillator, gain } = createVoice(
+            frequencyHz,
+            waveform
+        );
+
+        const startTime = audioContext.currentTime + delaySeconds;
+
+        const releaseTime = startTime + durationSeconds;
+
+        const targetGain = VOICE_GAIN * clamp(volume, 0, 1);
+
+        oscillator.frequency.setValueAtTime(frequencyHz, startTime);
+
+        gain.gain.setValueAtTime(0, startTime);
+
+        gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.012);
+
+        gain.gain.setValueAtTime(
+            targetGain,
+            Math.max(startTime + 0.012, releaseTime - 0.015)
+        );
+
+        gain.gain.linearRampToValueAtTime(0, releaseTime);
+
+        oscillator.start(startTime);
+        oscillator.stop(releaseTime + 0.02);
+
+        let stopped = false;
+
+        const voice = {
+            stop() {
+                if (stopped) {
+                    return;
+                }
+
+                stopped = true;
+
+                const now = audioContext.currentTime;
+
+                cancelAndHold(gain.gain, now);
+
+                gain.gain.linearRampToValueAtTime(0, now + 0.015);
+
+                try {
+                    oscillator.stop(Math.max(now + 0.02, startTime));
+                } catch {}
+            },
+        };
+
+        transientVoices.add(voice);
+
+        oscillator.addEventListener(
+            'ended',
+            () => {
+                transientVoices.delete(voice);
+
+                oscillator.disconnect();
+                gain.disconnect();
+            },
+            {
+                once: true,
+            }
+        );
+
+        return voice;
+    }
+
+    function stopTransient() {
+        for (const voice of transientVoices) {
+            voice.stop();
+        }
+
+        transientVoices.clear();
+    }
+
+    return {
+        playContinuous,
+        playTransient,
+        stopTransient,
+    };
+})();
+
+let tunerVoice = null;
+
+function stopTuner() {
+    if (!tunerVoice) {
+        return;
+    }
+
+    tunerVoice.stop();
+    tunerVoice = null;
+}
+
+function stopAllAudio() {
+    stopTuner();
+    audio.stopTransient();
+}
+
+// Notes
+
+function createNoteOption(midi) {
+    const option = document.createElement('option');
+
+    option.value = String(midi);
+    option.textContent = midiToNoteName(midi);
+
+    return option;
+}
+
+function populateNoteSelector(select) {
+    const options = [];
+
+    for (let midi = 48; midi <= 84; midi += 1) {
+        options.push(createNoteOption(midi));
+    }
+
+    select.replaceChildren(...options);
+    select.value = String(DEFAULT_MIDI);
+}
+
+function initializeNotes() {
+    for (const select of document.querySelectorAll('.note-select')) {
+        populateNoteSelector(select);
+    }
+}
+
+function updateNoteReadout(select) {
+    const readout = document.querySelector(
+        `[data-note-frequency="${select.dataset.note}"]`
+    );
+
+    readout.textContent = `${selectedNoteFrequency(select).toFixed(3)} Hz`;
+}
 
 function updateNoteReadouts() {
-  element("tunerHz").textContent = `${selectedNoteFrequency(tunerNote).toFixed(
-    3,
-  )} Hz`;
-
-  element("placementHz").textContent = `${selectedNoteFrequency(
-    placementNote,
-  ).toFixed(3)} Hz`;
-
-  element("pickHz").textContent = `${selectedNoteFrequency(pickNote).toFixed(
-    3,
-  )} Hz`;
+    for (const select of document.querySelectorAll('.note-select')) {
+        updateNoteReadout(select);
+    }
 }
 
-//
+// Tabs
+
+function activateTab(button, focus = false) {
+    const tabName = button.dataset.tab;
+
+    for (const tab of document.querySelectorAll('.tab')) {
+        const active = tab === button;
+
+        tab.classList.toggle('active', active);
+
+        tab.setAttribute('aria-selected', String(active));
+
+        tab.tabIndex = active ? 0 : -1;
+    }
+
+    for (const panel of document.querySelectorAll('.tab-panel')) {
+        panel.hidden = panel.dataset.panel !== tabName;
+    }
+
+    stopAllAudio();
+    cancelPlacementAdvance();
+
+    if (focus) {
+        button.focus();
+    }
+}
+
+function initializeTabs() {
+    const tabs = [...document.querySelectorAll('.tab')];
+
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => {
+            activateTab(tab);
+        });
+
+        tab.addEventListener('keydown', (event) => {
+            let nextIndex;
+
+            switch (event.key) {
+                case 'ArrowRight':
+                    nextIndex = (index + 1) % tabs.length;
+
+                    break;
+
+                case 'ArrowLeft':
+                    nextIndex = (index - 1 + tabs.length) % tabs.length;
+
+                    break;
+
+                case 'Home':
+                    nextIndex = 0;
+                    break;
+
+                case 'End':
+                    nextIndex = tabs.length - 1;
+
+                    break;
+
+                default:
+                    return;
+            }
+
+            event.preventDefault();
+
+            activateTab(tabs[nextIndex], true);
+        });
+    });
+}
+
 // Tuning
-//
 
 function playTuner() {
-  stopAllAudio();
+    stopAllAudio();
 
-  tunerVoice = createContinuousTone(
-    selectedNoteFrequency(tunerNote),
-
-    element("tunerWaveform").value,
-
-    1,
-  );
+    tunerVoice = audio.playContinuous(
+        selectedNoteFrequency(document.querySelector('[data-note="tuner"]')),
+        document.querySelector('[data-waveform="tuner"]').value
+    );
 }
 
-//
 // Pitch placement
-//
 
-let placementTrial = null;
+const placement = {
+    trial: null,
+    advanceTimer: null,
 
-let placementAdvanceTimer = null;
-
-let placementStreak = 0;
-
-let placementTrialCount = 0;
-
-let placementErrorTotal = 0;
-
-let placementBest = null;
+    stats: {
+        streak: 0,
+        trials: 0,
+        errorTotal: 0,
+        best: null,
+    },
+};
 
 function cancelPlacementAdvance() {
-  if (placementAdvanceTimer !== null) {
-    clearTimeout(placementAdvanceTimer);
+    if (placement.advanceTimer !== null) {
+        clearTimeout(placement.advanceTimer);
 
-    placementAdvanceTimer = null;
-  }
+        placement.advanceTimer = null;
+    }
 
-  stopPlacementCountdown();
-}
-
-function stopPlacementCountdown() {
-  element("placementRefresh").classList.remove("counting-down");
+    document
+        .querySelector('.placement-refresh')
+        .classList.remove('counting-down');
 }
 
 function schedulePlacementAdvance() {
-  cancelPlacementAdvance();
+    cancelPlacementAdvance();
 
-  const refreshButton = element("placementRefresh");
+    const refreshButton = document.querySelector('.placement-refresh');
 
-  /*
-   * Force the animation to restart even if
-   * the previous trial just used it.
-   */
-  void refreshButton.offsetWidth;
+    void refreshButton.offsetWidth;
 
-  refreshButton.classList.add("counting-down");
+    refreshButton.classList.add('counting-down');
 
-  placementAdvanceTimer = window.setTimeout(() => {
-    placementAdvanceTimer = null;
+    placement.advanceTimer = window.setTimeout(() => {
+        placement.advanceTimer = null;
 
-    stopPlacementCountdown();
+        refreshButton.classList.remove('counting-down');
 
-    refreshPlacementTrial();
-  }, PLACEMENT_ADVANCE_DELAY);
+        newPlacementTrial(true);
+    }, PLACEMENT_ADVANCE_DELAY);
+}
+
+function renderPlacementStats() {
+    const { streak, trials, errorTotal, best } = placement.stats;
+
+    const meanError = trials > 0 ? errorTotal / trials : 0;
+
+    document.querySelector('[data-output="placement-streak"]').textContent =
+        String(streak);
+
+    document.querySelector('[data-output="placement-mean-error"]').textContent =
+        `${meanError.toFixed(1)} cents`;
+
+    document.querySelector('[data-output="placement-best"]').textContent =
+        best === null ? '--' : `${best.toFixed(2)} cents`;
 }
 
 function clearPlacementStats() {
-  placementStreak = 0;
+    placement.stats = {
+        streak: 0,
+        trials: 0,
+        errorTotal: 0,
+        best: null,
+    };
 
-  placementTrialCount = 0;
-
-  placementErrorTotal = 0;
-
-  placementBest = null;
-
-  updatePlacementStats();
+    renderPlacementStats();
 }
 
-function updatePlacementStats() {
-  const meanError =
-    placementTrialCount > 0 ? placementErrorTotal / placementTrialCount : 0;
+function setJudgmentState({ disabled, selected = null, correct = null }) {
+    for (const button of document.querySelectorAll('[data-judgment]')) {
+        button.disabled = disabled;
 
-  element("placementStreak").textContent = String(placementStreak);
+        button.classList.remove(
+            'answer-correct',
+            'answer-wrong',
+            'answer-target'
+        );
 
-  element("placementMeanError").textContent = `${meanError.toFixed(1)} cents`;
+        if (selected === null) {
+            continue;
+        }
 
-  element("placementBest").textContent =
-    placementBest === null ? "--" : `${placementBest.toFixed(2)} cents`;
+        const judgment = button.dataset.judgment;
+
+        if (selected === correct && judgment === selected) {
+            button.classList.add('answer-correct');
+
+            continue;
+        }
+
+        if (judgment === selected) {
+            button.classList.add('answer-wrong');
+        }
+
+        if (selected !== correct && judgment === correct) {
+            button.classList.add('answer-target');
+        }
+    }
 }
 
-function setJudgmentButtonsDisabled(disabled) {
-  const buttons = document.querySelectorAll("[data-judgment]");
+function readRange(minimumInput, maximumInput, defaultMinimum, defaultMaximum) {
+    let minimum = readNumber(minimumInput, defaultMinimum);
 
-  for (const button of buttons) {
-    button.disabled = disabled;
-  }
-}
+    let maximum = readNumber(maximumInput, defaultMaximum);
 
-function clearJudgmentState() {
-  const buttons = document.querySelectorAll("[data-judgment]");
+    if (minimum > maximum) {
+        [minimum, maximum] = [maximum, minimum];
+    }
 
-  for (const button of buttons) {
-    button.classList.remove("answer-correct", "answer-wrong", "answer-target");
-  }
+    return {
+        minimum,
+        maximum,
+    };
 }
 
 function clearPlacementResult() {
-  const result = element("placementResult");
+    const result = document.querySelector('[data-output="placement-result"]');
 
-  result.classList.remove("correct", "incorrect");
+    result.classList.remove('correct', 'incorrect');
 
-  result.replaceChildren();
+    result.replaceChildren();
 }
 
-function newPlacementTrial() {
-  cancelPlacementAdvance();
-  stopAllAudio();
+function createPlacementTrial() {
+    const rootHz = selectedNoteFrequency(
+        document.querySelector('[data-note="placement"]')
+    );
 
-  const rootHz = selectedNoteFrequency(placementNote);
+    const semitones = Number(
+        document.querySelector('[data-control="placement-interval"]').value
+    );
 
-  const semitones = Number(element("placementInterval").value);
+    const { minimum: minimumCents, maximum: maximumCents } = readRange(
+        document.querySelector('[data-control="placement-range-min"]'),
+        document.querySelector('[data-control="placement-range-max"]'),
+        10,
+        50
+    );
 
-  const range = Math.max(
-    0.1,
+    const magnitude =
+        minimumCents + Math.random() * (maximumCents - minimumCents);
 
-    numberValue(element("placementRange"), 50),
-  );
+    const correctTargetHz = rootHz * 2 ** (semitones / 12);
 
-  const correctTargetHz = rootHz * 2 ** (semitones / 12);
+    return {
+        rootHz,
+        correctTargetHz,
 
-  const magnitude = range <= 0.1 ? 0.1 : 0.1 + Math.random() * (range - 0.1);
+        mistuneCents: Math.random() < 0.5 ? -magnitude : magnitude,
 
-  placementTrial = {
-    rootHz,
+        committed: false,
+    };
+}
 
-    correctTargetHz,
+function newPlacementTrial(playImmediately = false) {
+    cancelPlacementAdvance();
+    stopAllAudio();
 
-    mistuneCents: Math.random() < 0.5 ? -magnitude : magnitude,
+    placement.trial = createPlacementTrial();
 
-    committed: false,
-  };
+    setJudgmentState({
+        disabled: true,
+    });
 
-  element("placementPlay").disabled = false;
+    clearPlacementResult();
 
-  clearJudgmentState();
-
-  setJudgmentButtonsDisabled(false);
-
-  clearPlacementResult();
+    if (playImmediately) {
+        playPlacementTrial();
+    }
 }
 
 function playPlacementTrial() {
-  /*
-   * Replaying within the 3 second answer window
-   * keeps the current trial and prevents automatic
-   * advancement.
-   */
-  cancelPlacementAdvance();
+    cancelPlacementAdvance();
 
-  if (!placementTrial) {
-    newPlacementTrial();
-  }
+    if (!placement.trial) {
+        newPlacementTrial();
+    }
 
-  stopAllAudio();
+    stopAllAudio();
 
-  const waveform = element("placementWaveform").value;
+    if (!placement.trial.committed) {
+        setJudgmentState({
+            disabled: false,
+        });
+    }
 
-  const duration = positiveNumberValue(element("placementDuration"), 1);
+    const { rootHz, correctTargetHz, mistuneCents } = placement.trial;
 
-  const targetHz = frequencyFromCents(
-    placementTrial.correctTargetHz,
-    placementTrial.mistuneCents,
-  );
+    const waveform = document.querySelector(
+        '[data-waveform="placement"]'
+    ).value;
 
-  playTransientTone(placementTrial.rootHz, waveform, duration, 1);
+    const duration = readNumber(
+        document.querySelector('[data-control="placement-duration"]'),
+        1
+    );
 
-  playTransientTone(targetHz, waveform, duration, 1, duration + 0.1);
-}
+    const targetHz = frequencyFromCents(correctTargetHz, mistuneCents);
 
-function refreshPlacementTrial() {
-  newPlacementTrial();
-  playPlacementTrial();
+    audio.playTransient(rootHz, waveform, duration);
+
+    audio.playTransient(targetHz, waveform, duration, 1, duration + 0.1);
 }
 
 function commitPlacement(judgment) {
-  if (!placementTrial || placementTrial.committed) {
-    return;
-  }
+    const trial = placement.trial;
 
-  stopTransientVoices();
-
-  placementTrial.committed = true;
-
-  const mistuneCents = placementTrial.mistuneCents;
-
-  const distance = Math.abs(mistuneCents);
-
-  const direction = mistuneCents < 0 ? "flat" : "sharp";
-
-  const correct = judgment === direction;
-
-  const mistunedHz = frequencyFromCents(
-    placementTrial.correctTargetHz,
-    mistuneCents,
-  );
-
-  const errorHz = mistunedHz - placementTrial.correctTargetHz;
-
-  /*
-   * Color the Flat / Sharp buttons using the
-   * same meaning as Pick target:
-   *
-   * green = selected correct answer
-   * red   = selected wrong answer
-   * blue  = correct answer that was missed
-   */
-  const judgmentButtons = document.querySelectorAll("[data-judgment]");
-
-  for (const button of judgmentButtons) {
-    const buttonJudgment = button.dataset.judgment;
-
-    button.classList.remove("answer-correct", "answer-wrong", "answer-target");
-
-    if (correct) {
-      if (buttonJudgment === judgment) {
-        button.classList.add("answer-correct");
-      }
-
-      continue;
+    if (!trial || trial.committed) {
+        return;
     }
 
-    if (buttonJudgment === judgment) {
-      button.classList.add("answer-wrong");
+    audio.stopTransient();
+
+    trial.committed = true;
+
+    const distance = Math.abs(trial.mistuneCents);
+
+    const direction = trial.mistuneCents < 0 ? 'flat' : 'sharp';
+
+    const correct = judgment === direction;
+
+    const mistunedHz = frequencyFromCents(
+        trial.correctTargetHz,
+        trial.mistuneCents
+    );
+
+    const errorHz = mistunedHz - trial.correctTargetHz;
+
+    setJudgmentState({
+        disabled: true,
+        selected: judgment,
+        correct: direction,
+    });
+
+    placement.stats.trials += 1;
+
+    placement.stats.errorTotal += correct ? 0 : distance;
+
+    placement.stats.streak = correct ? placement.stats.streak + 1 : 0;
+
+    if (
+        correct &&
+        (placement.stats.best === null || distance < placement.stats.best)
+    ) {
+        placement.stats.best = distance;
     }
 
-    if (buttonJudgment === direction) {
-      button.classList.add("answer-target");
-    }
-  }
+    renderPlacementStats();
 
-  setJudgmentButtonsDisabled(true);
+    const result = document.querySelector('[data-output="placement-result"]');
 
-  /*
-   * Stats
-   */
-  placementTrialCount += 1;
+    result.classList.add(correct ? 'correct' : 'incorrect');
 
-  placementErrorTotal += correct ? 0 : distance;
+    const icon = document.createElement('strong');
 
-  placementStreak = correct ? placementStreak + 1 : 0;
+    icon.textContent = correct ? '✓' : '✕';
 
-  if (correct && (placementBest === null || distance < placementBest)) {
-    placementBest = distance;
-  }
+    const text = document.createTextNode(
+        ` ${direction} · ` +
+            `${signed(trial.mistuneCents, 2)} cents ` +
+            `(${signed(errorHz, 3)} Hz)`
+    );
 
-  updatePlacementStats();
+    result.replaceChildren(icon, text);
 
-  /*
-   * Result
-   *
-   * Always display the actual answer.
-   * The icon/color tells whether the user
-   * got it right.
-   */
-  const result = element("placementResult");
-
-  result.classList.toggle("correct", correct);
-
-  result.classList.toggle("incorrect", !correct);
-
-  const icon = document.createElement("strong");
-
-  icon.textContent = correct ? "✓" : "✕";
-
-  const text = document.createTextNode(
-    ` ${direction} · ` +
-      `${signed(mistuneCents, 2)} cents ` +
-      `(${signed(errorHz, 3)} Hz)`,
-  );
-
-  result.replaceChildren(icon, text);
-
-  schedulePlacementAdvance();
+    schedulePlacementAdvance();
 }
 
-//
 // Pick target
-//
 
-let pickCandidates = [];
-
-let pickCommitted = false;
+const pick = {
+    candidates: [],
+    committed: false,
+    selectedIndex: null,
+};
 
 function shuffle(items) {
-  const result = [...items];
+    const result = [...items];
 
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    for (let index = result.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
 
-    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-  }
+        [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
 
-  return result;
+    return result;
 }
 
-function candidateOffsets(count, range) {
-  const offsets = [0];
-
-  const remaining = count - 1;
-
-  const levels = Math.ceil(remaining / 2);
-
-  for (let level = 1; level <= levels; level += 1) {
-    const magnitude = (range * level) / levels;
-
-    const signs = Math.random() < 0.5 ? [-1, 1] : [1, -1];
-
-    for (const sign of signs) {
-      if (offsets.length >= count) {
-        break;
-      }
-
-      offsets.push(sign * magnitude);
+function spreadMagnitudes(count, minimum, maximum) {
+    if (count === 0) {
+        return [];
     }
-  }
 
-  return offsets;
+    if (count === 1) {
+        return [minimum + Math.random() * (maximum - minimum)];
+    }
+
+    const bandSize = (maximum - minimum) / count;
+
+    return Array.from({ length: count }, (_, index) => {
+        const lower = minimum + bandSize * index;
+
+        const upper =
+            index === count - 1 ? maximum : minimum + bandSize * (index + 1);
+
+        return lower + Math.random() * (upper - lower);
+    });
+}
+
+function candidateOffsets(count, minimum, maximum) {
+    const nonTargetCount = count - 1;
+
+    let negativeCount = Math.floor(nonTargetCount / 2);
+
+    let positiveCount = nonTargetCount - negativeCount;
+
+    /*
+     * When there's an odd number of
+     * non-target candidates, randomly
+     * choose which side gets the extra.
+     */
+    if (Math.random() < 0.5) {
+        [negativeCount, positiveCount] = [positiveCount, negativeCount];
+    }
+
+    const negativeOffsets = spreadMagnitudes(
+        negativeCount,
+        minimum,
+        maximum
+    ).map((magnitude) => -magnitude);
+
+    const positiveOffsets = spreadMagnitudes(positiveCount, minimum, maximum);
+
+    return [0, ...negativeOffsets, ...positiveOffsets];
 }
 
 function newPickSet() {
-  stopAllAudio();
+    stopAllAudio();
 
-  const targetHz = selectedNoteFrequency(pickNote);
+    const targetHz = selectedNoteFrequency(
+        document.querySelector('[data-note="pick"]')
+    );
 
-  const range = Math.max(
-    0.1,
+    const { minimum: minimumCents, maximum: maximumCents } = readRange(
+        document.querySelector('[data-control="pick-range-min"]'),
+        document.querySelector('[data-control="pick-range-max"]'),
+        10,
+        50
+    );
 
-    numberValue(element("pickRange"), 50),
-  );
+    const count = Math.round(
+        readNumber(document.querySelector('[data-control="pick-count"]'), 7)
+    );
 
-  const count = clamp(Math.round(numberValue(element("pickCount"), 7)), 2, 10);
+    pick.candidates = shuffle(
+        candidateOffsets(count, minimumCents, maximumCents).map((cents) => ({
+            cents,
 
-  pickCandidates = shuffle(
-    candidateOffsets(count, range).map((cents) => ({
-      cents,
+            frequencyHz: frequencyFromCents(targetHz, cents),
 
-      frequencyHz: frequencyFromCents(targetHz, cents),
+            isTarget: Math.abs(cents) < 0.000001,
 
-      isTarget: Math.abs(cents) < 0.000001,
+            played: false,
+        }))
+    );
 
-      played: false,
+    pick.committed = false;
+    pick.selectedIndex = null;
 
-      row: null,
-
-      details: null,
-
-      chooseButton: null,
-    })),
-  );
-
-  pickCommitted = false;
-
-  renderCandidates();
+    renderCandidates();
 }
 
-function renderCandidates() {
-  const rows = [];
+function getCandidateResult(candidate, index) {
+    if (!pick.committed) {
+        return null;
+    }
 
-  pickCandidates.forEach((candidate, index) => {
-    const row = document.createElement("div");
+    if (candidate.isTarget && index === pick.selectedIndex) {
+        return {
+            icon: '✓',
+            className: 'pick-correct',
+        };
+    }
 
-    row.className = "candidate-row";
+    if (index === pick.selectedIndex) {
+        return {
+            icon: '✕',
+            className: 'pick-wrong',
+        };
+    }
 
-    const actions = document.createElement("div");
+    if (candidate.isTarget) {
+        return {
+            icon: '◎',
+            className: 'pick-target',
+        };
+    }
 
-    actions.className = "candidate-actions";
+    return {
+        icon: '',
+        className: '',
+    };
+}
 
-    const playButton = document.createElement("button");
+function createCandidateRow(candidate, index) {
+    const row = document.createElement('div');
 
-    playButton.type = "button";
+    row.className = 'candidate-row';
 
-    playButton.className = "candidate-play icon-button";
+    row.dataset.index = String(index);
 
-    playButton.setAttribute("aria-label", `Play candidate ${index + 1}`);
+    const actions = document.createElement('div');
+
+    actions.className = 'candidate-actions';
+
+    const playButton = document.createElement('button');
+
+    playButton.type = 'button';
+
+    playButton.className = 'icon-button candidate-play';
+
+    playButton.dataset.action = 'play-candidate';
+
+    playButton.setAttribute('aria-label', `Play candidate ${index + 1}`);
 
     playButton.title = `Play candidate ${index + 1}`;
 
-    playButton.textContent = "▶";
+    playButton.textContent = '▶';
 
-    const chooseButton = document.createElement("button");
+    const chooseButton = document.createElement('button');
 
-    chooseButton.type = "button";
+    chooseButton.type = 'button';
 
-    chooseButton.className = "choose-button";
+    chooseButton.className = 'choose-button';
+
+    chooseButton.dataset.action = 'choose-candidate';
 
     chooseButton.textContent = `Choose #${index + 1}`;
 
-    chooseButton.disabled = true;
-
-    const details = document.createElement("span");
-
-    details.className = "candidate-details";
-
-    candidate.row = row;
-
-    candidate.details = details;
-
-    candidate.chooseButton = chooseButton;
-
-    playButton.addEventListener("click", () => {
-      stopAllAudio();
-
-      candidate.played = true;
-
-      if (!pickCommitted) {
-        chooseButton.disabled = false;
-      }
-
-      playTransientTone(
-        candidate.frequencyHz,
-
-        element("pickWaveform").value,
-
-        positiveNumberValue(element("pickDuration"), 1),
-      );
-    });
-
-    chooseButton.addEventListener("click", () => {
-      commitPick(candidate);
-    });
+    chooseButton.disabled = pick.committed || !candidate.played;
 
     actions.append(playButton, chooseButton);
 
-    row.append(actions, details);
+    row.append(actions);
 
-    rows.push(row);
-  });
+    const result = getCandidateResult(candidate, index);
 
-  element("candidateList").replaceChildren(...rows);
-}
-
-function commitPick(selected) {
-  if (pickCommitted) {
-    return;
-  }
-
-  stopTransientVoices();
-
-  pickCommitted = true;
-
-  const target = pickCandidates.find((candidate) => candidate.isTarget);
-
-  const errorCents = centsBetween(selected.frequencyHz, target.frequencyHz);
-
-  for (const candidate of pickCandidates) {
-    candidate.chooseButton.disabled = true;
-
-    candidate.row.classList.remove("pick-wrong", "pick-target", "pick-correct");
-
-    const icon = document.createElement("span");
-
-    icon.className = "candidate-result-icon";
-
-    let showIcon = false;
-
-    if (candidate === selected && candidate.isTarget) {
-      candidate.row.classList.add("pick-correct");
-
-      icon.textContent = "✓";
-
-      showIcon = true;
-    } else {
-      if (candidate === selected) {
-        candidate.row.classList.add("pick-wrong");
-
-        icon.textContent = "✕";
-
-        showIcon = true;
-      }
-
-      if (candidate.isTarget) {
-        candidate.row.classList.add("pick-target");
-
-        icon.textContent = "◎";
-
-        showIcon = true;
-      }
+    if (!result) {
+        return row;
     }
 
-    const text = document.createTextNode(
-      `${candidate.frequencyHz.toFixed(3)} Hz, ` +
-        `${signed(candidate.cents, 2)} cents`,
+    if (result.className) {
+        row.classList.add(result.className);
+    }
+
+    const details = document.createElement('span');
+
+    details.className = 'candidate-details';
+
+    if (result.icon) {
+        const icon = document.createElement('span');
+
+        icon.className = 'candidate-result-icon';
+
+        icon.textContent = result.icon;
+
+        details.append(icon);
+    }
+
+    details.append(
+        document.createTextNode(
+            `${candidate.frequencyHz.toFixed(3)} Hz, ` +
+                `${signed(candidate.cents, 2)} cents`
+        )
     );
 
-    if (showIcon) {
-      candidate.details.replaceChildren(icon, text);
-    } else {
-      candidate.details.replaceChildren(text);
+    row.append(details);
+
+    return row;
+}
+
+function renderCandidates() {
+    const rows = pick.candidates.map(createCandidateRow);
+
+    document.querySelector('[data-candidates]').replaceChildren(...rows);
+}
+
+function playCandidate(index) {
+    const candidate = pick.candidates[index];
+
+    if (!candidate) {
+        return;
     }
-  }
 
-  savePickStat(errorCents);
+    stopAllAudio();
 
-  renderPickStats();
+    candidate.played = true;
+
+    audio.playTransient(
+        candidate.frequencyHz,
+
+        document.querySelector('[data-waveform="pick"]').value,
+
+        readNumber(document.querySelector('[data-control="pick-duration"]'), 1)
+    );
+
+    if (pick.committed) {
+        return;
+    }
+
+    const row = document.querySelector(`.candidate-row[data-index="${index}"]`);
+
+    const chooseButton = row?.querySelector('[data-action="choose-candidate"]');
+
+    if (chooseButton) {
+        chooseButton.disabled = false;
+    }
 }
 
 function loadPickStats() {
-  try {
-    const stats = JSON.parse(localStorage.getItem(PICK_STATS_KEY) || "[]");
+    try {
+        const stats = JSON.parse(localStorage.getItem(PICK_STATS_KEY) || '[]');
 
-    return Array.isArray(stats) ? stats : [];
-  } catch {
-    return [];
-  }
+        return Array.isArray(stats) ? stats : [];
+    } catch {
+        return [];
+    }
 }
 
 function savePickStat(errorCents) {
-  const stats = loadPickStats();
+    const stats = loadPickStats();
 
-  stats.push({
-    dateTime: new Date().toISOString(),
+    stats.push({
+        dateTime: new Date().toISOString(),
 
-    targetHz: selectedNoteFrequency(pickNote),
+        targetHz: selectedNoteFrequency(
+            document.querySelector('[data-note="pick"]')
+        ),
 
-    errorCents,
-  });
+        errorCents,
+    });
 
-  localStorage.setItem(
-    PICK_STATS_KEY,
+    localStorage.setItem(
+        PICK_STATS_KEY,
 
-    JSON.stringify(stats.slice(-500)),
-  );
+        JSON.stringify(stats.slice(-500))
+    );
 }
 
 function currentPickStreak(stats) {
-  let streak = 0;
+    let streak = 0;
 
-  for (let index = stats.length - 1; index >= 0; index -= 1) {
-    if (Math.abs(Number(stats[index].errorCents)) >= 0.000001) {
-      break;
+    for (let index = stats.length - 1; index >= 0; index -= 1) {
+        if (Math.abs(Number(stats[index].errorCents)) >= 0.000001) {
+            break;
+        }
+
+        streak += 1;
     }
 
-    streak += 1;
-  }
-
-  return streak;
+    return streak;
 }
 
 function renderPickStats() {
-  const stats = loadPickStats();
+    const stats = loadPickStats();
 
-  let absoluteError = 0;
+    const errorTotal = stats.reduce(
+        (total, stat) => total + Math.abs(Number(stat.errorCents)),
+        0
+    );
 
-  for (const stat of stats) {
-    absoluteError += Math.abs(Number(stat.errorCents));
-  }
+    const meanError = stats.length > 0 ? errorTotal / stats.length : 0;
 
-  const meanError = stats.length > 0 ? absoluteError / stats.length : 0;
+    document.querySelector('[data-output="pick-streak"]').textContent = String(
+        currentPickStreak(stats)
+    );
 
-  element("pickStreak").textContent = String(currentPickStreak(stats));
-
-  element("pickMeanError").textContent = `${meanError.toFixed(1)} cents`;
+    document.querySelector('[data-output="pick-mean-error"]').textContent =
+        `${meanError.toFixed(1)} cents`;
 }
 
-//
+function commitPick(index) {
+    if (pick.committed) {
+        return;
+    }
+
+    const selected = pick.candidates[index];
+
+    const target = pick.candidates.find((candidate) => candidate.isTarget);
+
+    if (!selected || !target) {
+        return;
+    }
+
+    audio.stopTransient();
+
+    pick.committed = true;
+    pick.selectedIndex = index;
+
+    savePickStat(centsBetween(selected.frequencyHz, target.frequencyHz));
+
+    renderCandidates();
+    renderPickStats();
+}
+
 // Events
-//
+
+function resetForReferenceChange() {
+    stopAllAudio();
+    cancelPlacementAdvance();
+
+    updateNoteReadouts();
+
+    newPlacementTrial();
+    newPickSet();
+}
 
 function initializeEvents() {
-  tunerNote.addEventListener("change", () => {
-    updateNoteReadouts();
+    document
+        .querySelector('[data-note="tuner"]')
+        .addEventListener('change', (event) => {
+            updateNoteReadout(event.currentTarget);
 
-    if (tunerVoice) {
-      tunerVoice.setFrequency(selectedNoteFrequency(tunerNote));
+            if (tunerVoice) {
+                tunerVoice.setFrequency(
+                    selectedNoteFrequency(event.currentTarget)
+                );
+            }
+        });
+
+    document
+        .querySelector('[data-note="placement"]')
+        .addEventListener('change', (event) => {
+            updateNoteReadout(event.currentTarget);
+
+            newPlacementTrial();
+        });
+
+    document
+        .querySelector('[data-note="pick"]')
+        .addEventListener('change', (event) => {
+            updateNoteReadout(event.currentTarget);
+
+            newPickSet();
+        });
+
+    for (const control of document.querySelectorAll(
+        '[data-control="placement-range-min"], [data-control="placement-range-max"], [data-control="placement-interval"]'
+    )) {
+        control.addEventListener('change', newPlacementTrial);
     }
-  });
 
-  placementNote.addEventListener("change", updateNoteReadouts);
+    for (const control of document.querySelectorAll(
+        '[data-control="pick-range-min"], [data-control="pick-range-max"], [data-control="pick-count"]'
+    )) {
+        control.addEventListener('change', newPickSet);
+    }
 
-  pickNote.addEventListener("change", updateNoteReadouts);
+    document
+        .querySelector('[data-control="a4"]')
+        .addEventListener('input', resetForReferenceChange);
 
-  element("clearPlacementStats").addEventListener("click", clearPlacementStats);
+    document
+        .querySelector('[data-action="reset-a4"]')
+        .addEventListener('click', () => {
+            document.querySelector('[data-control="a4"]').value =
+                DEFAULT_A4.toFixed(3);
 
-  element("globalA4").addEventListener("input", () => {
-    stopAllAudio();
-    cancelPlacementAdvance();
+            resetForReferenceChange();
+        });
 
-    updateNoteReadouts();
-  });
+    document
+        .querySelector('[data-action="play-tuner"]')
+        .addEventListener('click', playTuner);
 
-  element("resetA4").addEventListener("click", () => {
-    stopAllAudio();
-    cancelPlacementAdvance();
+    document
+        .querySelector('[data-action="play-placement"]')
+        .addEventListener('click', playPlacementTrial);
 
-    element("globalA4").value = DEFAULT_A4.toFixed(3);
+    document
+        .querySelector('[data-action="new-placement"]')
+        .addEventListener('click', () => {
+            newPlacementTrial(true);
+        });
 
-    updateNoteReadouts();
-  });
+    document
+        .querySelector('[data-action="new-pick"]')
+        .addEventListener('click', newPickSet);
 
-  element("tunerPlay").addEventListener("click", playTuner);
+    for (const button of document.querySelectorAll('[data-judgment]')) {
+        button.addEventListener('click', () => {
+            commitPlacement(button.dataset.judgment);
+        });
+    }
 
-  /*
-   * Every stop button stops every current stream
-   * and also cancels Pitch placement's pending
-   * automatic next trial.
-   */
-  for (const stopButton of document.querySelectorAll("[data-stop-all]")) {
-    stopButton.addEventListener("click", () => {
-      stopAllAudio();
-      cancelPlacementAdvance();
-    });
-  }
+    for (const button of document.querySelectorAll(
+        '[data-action="stop-audio"]'
+    )) {
+        button.addEventListener('click', () => {
+            stopAllAudio();
+            cancelPlacementAdvance();
+        });
+    }
 
-  /*
-   * Changing a waveform never changes a tone while
-   * it is sounding. Current audio stops first.
-   */
-  for (const waveform of document.querySelectorAll(".waveform-select")) {
-    waveform.addEventListener("change", stopAllAudio);
-  }
+    for (const waveform of document.querySelectorAll('.waveform-select')) {
+        waveform.addEventListener('change', stopAllAudio);
+    }
 
-  element("placementPlay").addEventListener("click", playPlacementTrial);
+    document
+        .querySelector('[data-candidates]')
+        .addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-action]');
 
-  element("placementRefresh").addEventListener("click", refreshPlacementTrial);
+            const row = button?.closest('.candidate-row');
 
-  for (const button of document.querySelectorAll("[data-judgment]")) {
-    button.addEventListener("click", () => {
-      commitPlacement(button.dataset.judgment);
-    });
-  }
+            if (!button || !row) {
+                return;
+            }
 
-  element("pickRefresh").addEventListener("click", newPickSet);
+            const index = Number(row.dataset.index);
 
-  element("clearPickStats").addEventListener("click", () => {
-    localStorage.removeItem(PICK_STATS_KEY);
+            if (button.dataset.action === 'play-candidate') {
+                playCandidate(index);
+                return;
+            }
 
-    renderPickStats();
-  });
+            if (button.dataset.action === 'choose-candidate') {
+                commitPick(index);
+            }
+        });
+
+    document
+        .querySelector('[data-action="clear-placement-stats"]')
+        .addEventListener('click', clearPlacementStats);
+
+    document
+        .querySelector('[data-action="clear-pick-stats"]')
+        .addEventListener('click', () => {
+            localStorage.removeItem(PICK_STATS_KEY);
+
+            renderPickStats();
+        });
 }
 
-//
 // Initialization
-//
 
 function initialize() {
-  initializeTabs();
+    initializeTabs();
+    initializeNotes();
 
-  populateNoteSelector(tunerNote, 69);
+    updateNoteReadouts();
 
-  populateNoteSelector(placementNote, 69);
+    clearPlacementResult();
+    clearPlacementStats();
 
-  populateNoteSelector(pickNote, 69);
+    newPlacementTrial();
+    newPickSet();
 
-  updateNoteReadouts();
+    renderPickStats();
 
-  clearPlacementResult();
-
-  setJudgmentButtonsDisabled(true);
-
-  element("placementPlay").disabled = true;
-
-  updatePlacementStats();
-
-  newPickSet();
-
-  renderPickStats();
-
-  initializeEvents();
+    initializeEvents();
 }
 
 initialize();
 
-window.addEventListener("beforeunload", () => {
-  stopAllAudio();
-  cancelPlacementAdvance();
+window.addEventListener('beforeunload', () => {
+    stopAllAudio();
+    cancelPlacementAdvance();
 });

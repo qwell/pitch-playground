@@ -1,517 +1,630 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Pitch Playground</title>
+        <link rel="stylesheet" href="index.css" />
+    </head>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <body>
+        <header class="topbar">
+            <div class="page-width topbar-inner">
+                <strong class="brand-name">Pitch Playground</strong>
 
-    <title>Pitch Playground</title>
+                <div class="global-reference">
+                    <label for="global-a4"> A4 reference (Hz) </label>
 
-    <link rel="stylesheet" href="index.css" />
-  </head>
+                    <div class="global-reference-controls">
+                        <input
+                            id="global-a4"
+                            data-control="a4"
+                            type="number"
+                            min="300"
+                            max="600"
+                            step="0.001"
+                            value="440.000"
+                        />
 
-  <body>
-    <header class="topbar">
-      <div class="page-width topbar-inner">
-        <strong class="brand-name"> Pitch Playground </strong>
-
-        <div class="global-reference">
-          <label for="globalA4"> A4 = </label>
-
-          <input
-            id="globalA4"
-            type="number"
-            min="300"
-            max="600"
-            step="0.001"
-            value="440.000"
-          />
-
-          <span>Hz</span>
-
-          <button id="resetA4" type="button">Reset</button>
-        </div>
-      </div>
-    </header>
-
-    <nav class="tabs" aria-label="Pitch playground sections">
-      <div class="page-width tabs-inner" role="tablist">
-        <button
-          class="tab active"
-          type="button"
-          role="tab"
-          aria-selected="true"
-          data-tab="tuning"
-        >
-          Tuning
-        </button>
-
-        <button
-          class="tab"
-          type="button"
-          role="tab"
-          aria-selected="false"
-          data-tab="placement"
-        >
-          Pitch placement
-        </button>
-
-        <button
-          class="tab"
-          type="button"
-          role="tab"
-          aria-selected="false"
-          data-tab="pick"
-        >
-          Pick target
-        </button>
-      </div>
-    </nav>
-
-    <main class="page-width">
-      <!-- Tuning -->
-
-      <section id="tab-tuning" class="tab-panel active">
-        <section class="experiment">
-          <h1>Tuning</h1>
-
-          <p class="blurb">Play a known note as a reference.</p>
-
-          <div class="form-grid">
-            <div class="field">
-              <label for="tunerNote"> Note </label>
-
-              <div class="control-row">
-                <select id="tunerNote"></select>
-
-                <span id="tunerHz" class="suffix hz-readout"></span>
-              </div>
+                        <button data-action="reset-a4" type="button">
+                            Reset
+                        </button>
+                    </div>
+                </div>
             </div>
+        </header>
 
-            <div class="field">
-              <label for="tunerWaveform">
-                Wave type
-
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+        <nav class="tabs" aria-label="Pitch playground sections">
+            <div class="page-width tabs-inner" role="tablist">
+                <button
+                    id="tab-tuning"
+                    class="tab active"
+                    data-tab="tuning"
+                    type="button"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="panel-tuning"
                 >
-                  ⓘ
-                </span>
-              </label>
+                    Tuning
+                </button>
 
-              <div class="control-row">
-                <select id="tunerWaveform" class="waveform-select">
-                  <option value="triangle" selected>triangle</option>
-
-                  <option value="sine">sine</option>
-                </select>
-
-                <span class="suffix" aria-hidden="true"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="test-actions">
-            <div class="action-button-grid">
-              <button
-                id="tunerPlay"
-                class="icon-button"
-                type="button"
-                aria-label="Play reference tone"
-                title="Play"
-              >
-                <span aria-hidden="true">▶</span>
-              </button>
-
-              <button
-                class="icon-button"
-                type="button"
-                data-stop-all
-                aria-label="Stop all audio"
-                title="Stop"
-              >
-                <span aria-hidden="true">■</span>
-              </button>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <!-- Pitch placement -->
-
-      <section id="tab-placement" class="tab-panel" hidden>
-        <section class="experiment">
-          <h1>Pitch placement</h1>
-
-          <p class="blurb">
-            Hear a reference followed by a mistuned target. Decide whether the
-            target landed flat or sharp.
-          </p>
-
-          <div class="form-grid">
-            <div class="field">
-              <label for="placementNote"> Note </label>
-
-              <div class="control-row">
-                <select id="placementNote"></select>
-
-                <span id="placementHz" class="suffix hz-readout"></span>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="placementWaveform">
-                Wave type
-
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                <button
+                    id="tab-placement"
+                    class="tab"
+                    data-tab="placement"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-placement"
+                    tabindex="-1"
                 >
-                  ⓘ
-                </span>
-              </label>
+                    Pitch placement
+                </button>
 
-              <div class="control-row">
-                <select id="placementWaveform" class="waveform-select">
-                  <option value="sine" selected>sine</option>
-
-                  <option value="triangle">triangle</option>
-                </select>
-
-                <span class="suffix" aria-hidden="true"></span>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="placementRange">
-                Range
-
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Maximum mistuning. Each trial is randomly flat or sharp by between 0.1 cents and this value."
+                <button
+                    id="tab-pick"
+                    class="tab"
+                    data-tab="pick"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-pick"
+                    tabindex="-1"
                 >
-                  ⓘ
-                </span>
-              </label>
-
-              <div class="control-row">
-                <input
-                  id="placementRange"
-                  type="number"
-                  min="0.1"
-                  max="200"
-                  step="0.1"
-                  value="50.0"
-                />
-
-                <span class="suffix"> cents </span>
-              </div>
+                    Pick target
+                </button>
             </div>
+        </nav>
 
-            <div class="field">
-              <label for="placementDuration"> Duration </label>
+        <main class="page-width">
+            <section
+                id="panel-tuning"
+                class="tab-panel"
+                data-panel="tuning"
+                role="tabpanel"
+                aria-labelledby="tab-tuning"
+            >
+                <section class="experiment">
+                    <p class="blurb">Play a known note as a reference.</p>
 
-              <div class="control-row">
-                <input
-                  id="placementDuration"
-                  type="number"
-                  min="0.1"
-                  max="10"
-                  step="0.1"
-                  value="1.0"
-                />
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="tuner-note">
+                                Note (<span data-note-frequency="tuner"></span>)
+                            </label>
 
-                <span class="suffix"> sec </span>
-              </div>
-            </div>
+                            <div class="control-row">
+                                <select
+                                    id="tuner-note"
+                                    class="note-select"
+                                    data-note="tuner"
+                                ></select>
+                            </div>
+                        </div>
 
-            <div class="field">
-              <label for="placementInterval">
-                Interval
+                        <div class="field">
+                            <label for="tuner-waveform">
+                                Wave type
 
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Equal-tempered distance from the reference note to the correctly tuned target before mistuning is applied."
-                >
-                  ⓘ
-                </span>
-              </label>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                    data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
 
-              <div class="control-row">
-                <select id="placementInterval">
-                  <option value="0" selected>unison</option>
+                            <div class="control-row">
+                                <select
+                                    id="tuner-waveform"
+                                    class="waveform-select"
+                                    data-waveform="tuner"
+                                >
+                                    <option value="triangle" selected>
+                                        triangle
+                                    </option>
 
-                  <option value="12">octave</option>
+                                    <option value="sine">sine</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-                  <option value="7">perfect fifth</option>
+                    <!-- Tuning -->
 
-                  <option value="5">perfect fourth</option>
+                    <div class="practice tuner-practice">
+                        <div class="action-button-grid">
+                            <button
+                                class="icon-button"
+                                data-action="play-tuner"
+                                type="button"
+                                aria-label="Play reference tone"
+                                title="Play"
+                            >
+                                <span aria-hidden="true">▶</span>
+                            </button>
 
-                  <option value="4">major third</option>
+                            <button
+                                class="icon-button"
+                                data-action="stop-audio"
+                                type="button"
+                                aria-label="Stop all audio"
+                                title="Stop"
+                            >
+                                <span aria-hidden="true">■</span>
+                            </button>
 
-                  <option value="3">minor third</option>
+                            <span
+                                class="action-spacer"
+                                aria-hidden="true"
+                            ></span>
+                        </div>
+                    </div>
+                </section>
+            </section>
 
-                  <option value="2">major second</option>
+            <section
+                id="panel-placement"
+                class="tab-panel"
+                data-panel="placement"
+                role="tabpanel"
+                aria-labelledby="tab-placement"
+                hidden
+            >
+                <section class="experiment">
+                    <p class="blurb">
+                        Hear a reference followed by a mistuned target. Decide
+                        whether the target landed flat or sharp.
+                    </p>
 
-                  <option value="1">minor second</option>
-                </select>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="placement-note">
+                                Note (<span
+                                    data-note-frequency="placement"
+                                ></span
+                                >)
+                            </label>
 
-                <span class="suffix" aria-hidden="true"></span>
-              </div>
-            </div>
-          </div>
+                            <div class="control-row">
+                                <select
+                                    id="placement-note"
+                                    class="note-select"
+                                    data-note="placement"
+                                ></select>
+                            </div>
+                        </div>
 
-          <div class="placement-controls">
-            <div class="placement-actions">
-              <button
-                id="placementPlay"
-                class="icon-button"
-                type="button"
-                aria-label="Play trial"
-                title="Play"
-                disabled
-              >
-                <span aria-hidden="true">▶</span>
-              </button>
+                        <div class="field">
+                            <label for="placement-waveform">
+                                Wave type
 
-              <button
-                class="icon-button"
-                type="button"
-                data-stop-all
-                aria-label="Stop all audio"
-                title="Stop"
-              >
-                <span aria-hidden="true">■</span>
-              </button>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                    data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
 
-              <button
-                id="placementRefresh"
-                class="icon-button"
-                type="button"
-                aria-label="New trial and play"
-                title="New trial and play"
-              >
-                <span aria-hidden="true">↻</span>
-              </button>
-            </div>
+                            <div class="control-row">
+                                <select
+                                    id="placement-waveform"
+                                    class="waveform-select"
+                                    data-waveform="placement"
+                                >
+                                    <option value="sine" selected>sine</option>
 
-            <div class="judgment" role="group" aria-label="Pitch judgment">
-              <button type="button" data-judgment="flat" disabled>Flat</button>
+                                    <option value="triangle">triangle</option>
+                                </select>
+                            </div>
+                        </div>
 
-              <button type="button" data-judgment="sharp" disabled>
-                Sharp
-              </button>
-            </div>
+                        <div class="field">
+                            <label for="placement-range-min">
+                                Range (cents)
 
-            <div class="stats-stack placement-stats">
-              <div>
-                Streak:
-                <strong id="placementStreak">0</strong>
-              </div>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Minimum and maximum mistuning. Each trial is randomly flat or sharp within this range."
+                                    data-tooltip="Minimum and maximum mistuning. Each trial is randomly flat or sharp within this range."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
 
-              <div>
-                Mean error:
-                <strong id="placementMeanError">0.0 cents</strong>
-              </div>
+                            <div class="range-controls">
+                                <input
+                                    id="placement-range-min"
+                                    data-control="placement-range-min"
+                                    type="number"
+                                    min="0.1"
+                                    max="200"
+                                    step="0.1"
+                                    value="10.0"
+                                    aria-label="Minimum range"
+                                />
 
-              <div>
-                Best:
-                <strong id="placementBest">--</strong>
-              </div>
+                                <span aria-hidden="true">–</span>
 
-              <button
-                id="clearPlacementStats"
-                class="link-button"
-                type="button"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
+                                <input
+                                    id="placement-range-max"
+                                    data-control="placement-range-max"
+                                    type="number"
+                                    min="0.1"
+                                    max="200"
+                                    step="0.1"
+                                    value="50.0"
+                                    aria-label="Maximum range"
+                                />
+                            </div>
+                        </div>
 
-          <div
-            id="placementResult"
-            class="placement-result"
-            aria-live="polite"
-          ></div>
-        </section>
-      </section>
+                        <div class="field">
+                            <label for="placement-duration">
+                                Duration (seconds)
+                            </label>
 
-      <!-- Pick target -->
+                            <div class="control-row">
+                                <input
+                                    id="placement-duration"
+                                    data-control="placement-duration"
+                                    type="number"
+                                    min="0.1"
+                                    max="10"
+                                    step="0.1"
+                                    value="1.0"
+                                />
+                            </div>
+                        </div>
 
-      <section id="tab-pick" class="tab-panel" hidden>
-        <section class="experiment">
-          <h1>Pick target</h1>
+                        <div class="field">
+                            <label for="placement-interval">
+                                Interval
 
-          <p class="blurb">
-            Listen to candidates and choose the tone that matches the selected
-            note.
-          </p>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Equal-tempered distance from the reference note to the correctly tuned target before mistuning is applied."
+                                    data-tooltip="Equal-tempered distance from the reference note to the correctly tuned target before mistuning is applied."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
 
-          <div class="form-grid">
-            <div class="field">
-              <label for="pickNote"> Note </label>
+                            <div class="control-row">
+                                <select
+                                    id="placement-interval"
+                                    data-control="placement-interval"
+                                >
+                                    <option value="0" selected>unison</option>
 
-              <div class="control-row">
-                <select id="pickNote"></select>
+                                    <option value="12">octave</option>
 
-                <span id="pickHz" class="suffix hz-readout"></span>
-              </div>
-            </div>
+                                    <option value="7">perfect fifth</option>
 
-            <div class="field">
-              <label for="pickWaveform">
-                Wave type
+                                    <option value="5">perfect fourth</option>
 
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
-                >
-                  ⓘ
-                </span>
-              </label>
+                                    <option value="4">major third</option>
 
-              <div class="control-row">
-                <select id="pickWaveform" class="waveform-select">
-                  <option value="sine" selected>sine</option>
+                                    <option value="3">minor third</option>
 
-                  <option value="triangle">triangle</option>
-                </select>
+                                    <option value="2">major second</option>
 
-                <span class="suffix" aria-hidden="true"></span>
-              </div>
-            </div>
+                                    <option value="1">minor second</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-            <div class="field">
-              <label for="pickRange">
-                Range
+                    <!-- Pitch placement -->
 
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Maximum distance in cents from the target to the outer candidate tones."
-                >
-                  ⓘ
-                </span>
-              </label>
+                    <div class="practice placement-practice">
+                        <div class="action-button-grid">
+                            <button
+                                class="icon-button"
+                                data-action="play-placement"
+                                type="button"
+                                aria-label="Play trial"
+                                title="Play"
+                            >
+                                <span aria-hidden="true">▶</span>
+                            </button>
 
-              <div class="control-row">
-                <input
-                  id="pickRange"
-                  type="number"
-                  min="0.1"
-                  max="1200"
-                  step="0.1"
-                  value="50.0"
-                />
+                            <button
+                                class="icon-button"
+                                data-action="stop-audio"
+                                type="button"
+                                aria-label="Stop all audio"
+                                title="Stop"
+                            >
+                                <span aria-hidden="true">■</span>
+                            </button>
 
-                <span class="suffix"> cents </span>
-              </div>
-            </div>
+                            <button
+                                class="icon-button placement-refresh"
+                                data-action="new-placement"
+                                type="button"
+                                aria-label="New trial and play"
+                                title="New trial and play"
+                            >
+                                <span aria-hidden="true">↻</span>
+                            </button>
+                        </div>
 
-            <div class="field">
-              <label for="pickDuration"> Duration </label>
+                        <div
+                            class="judgment"
+                            role="group"
+                            aria-label="Pitch judgment"
+                        >
+                            <button type="button" data-judgment="flat" disabled>
+                                Flat
+                            </button>
 
-              <div class="control-row">
-                <input
-                  id="pickDuration"
-                  type="number"
-                  min="0.1"
-                  max="10"
-                  step="0.1"
-                  value="1.0"
-                />
+                            <button
+                                type="button"
+                                data-judgment="sharp"
+                                disabled
+                            >
+                                Sharp
+                            </button>
+                        </div>
 
-                <span class="suffix"> sec </span>
-              </div>
-            </div>
+                        <div
+                            class="placement-result"
+                            data-output="placement-result"
+                            aria-live="polite"
+                        ></div>
 
-            <div class="field">
-              <label for="pickCount">
-                Candidates
+                        <dl class="stats practice-stats">
+                            <div class="stats-streak">
+                                <dt>Streak</dt>
 
-                <span
-                  class="info-tip"
-                  tabindex="0"
-                  data-tooltip="Number of choices. Exactly one candidate is the selected target note."
-                >
-                  ⓘ
-                </span>
-              </label>
+                                <dd>
+                                    <strong data-output="placement-streak"
+                                        >0</strong
+                                    >
 
-              <div class="control-row">
-                <select id="pickCount">
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                  <option value="6">6</option>
+                                    <button
+                                        class="link-button"
+                                        data-action="clear-placement-stats"
+                                        type="button"
+                                    >
+                                        Clear
+                                    </button>
+                                </dd>
+                            </div>
 
-                  <option value="7" selected>7</option>
+                            <div>
+                                <dt>Mean error</dt>
+                                <dd data-output="placement-mean-error">
+                                    0.0 cents
+                                </dd>
+                            </div>
 
-                  <option value="8">8</option>
-                  <option value="9">9</option>
-                  <option value="10">10</option>
-                </select>
+                            <div>
+                                <dt>Best</dt>
+                                <dd data-output="placement-best">--</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+            </section>
 
-                <span class="suffix" aria-hidden="true"></span>
-              </div>
-            </div>
-          </div>
+            <section
+                id="panel-pick"
+                class="tab-panel"
+                data-panel="pick"
+                role="tabpanel"
+                aria-labelledby="tab-pick"
+                hidden
+            >
+                <section class="experiment">
+                    <p class="blurb">
+                        Listen to candidates and choose the tone that matches
+                        the selected note.
+                    </p>
 
-          <div class="pick-controls">
-            <div class="action-button-grid">
-              <span class="action-spacer" aria-hidden="true"></span>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="pick-note">
+                                Note (<span data-note-frequency="pick"></span>)
+                            </label>
 
-              <button
-                class="icon-button"
-                type="button"
-                data-stop-all
-                aria-label="Stop all audio"
-                title="Stop"
-              >
-                <span aria-hidden="true">■</span>
-              </button>
+                            <div class="control-row">
+                                <select
+                                    id="pick-note"
+                                    class="note-select"
+                                    data-note="pick"
+                                ></select>
+                            </div>
+                        </div>
 
-              <button
-                id="pickRefresh"
-                class="icon-button"
-                type="button"
-                aria-label="New candidate set"
-                title="New candidate set"
-              >
-                <span aria-hidden="true">↻</span>
-              </button>
-            </div>
+                        <div class="field">
+                            <label for="pick-waveform">
+                                Wave type
 
-            <div class="stats-stack pick-stats">
-              <div>
-                Streak:
-                <strong id="pickStreak">0</strong>
-              </div>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                    data-tooltip="Sine is a pure tone. Triangle adds odd harmonics and sounds richer."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
 
-              <div>
-                Mean error:
-                <strong id="pickMeanError">0.0 cents</strong>
-              </div>
+                            <div class="control-row">
+                                <select
+                                    id="pick-waveform"
+                                    class="waveform-select"
+                                    data-waveform="pick"
+                                >
+                                    <option value="sine" selected>sine</option>
 
-              <button id="clearPickStats" type="button" class="link-button">
-                Clear
-              </button>
-            </div>
+                                    <option value="triangle">triangle</option>
+                                </select>
+                            </div>
+                        </div>
 
-            <div id="candidateList" class="candidate-list"></div>
-          </div>
-        </section>
-      </section>
-    </main>
+                        <div class="field">
+                            <label for="pick-range-min">
+                                Range (cents)
 
-    <script src="index.js"></script>
-  </body>
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Minimum and maximum distance from the target to candidate tones."
+                                    data-tooltip="Minimum and maximum distance from the target to candidate tones."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
+
+                            <div class="range-controls">
+                                <input
+                                    id="pick-range-min"
+                                    data-control="pick-range-min"
+                                    type="number"
+                                    min="0.1"
+                                    max="1200"
+                                    step="0.1"
+                                    value="10.0"
+                                    aria-label="Minimum range"
+                                />
+
+                                <span aria-hidden="true">–</span>
+
+                                <input
+                                    id="pick-range-max"
+                                    data-control="pick-range-max"
+                                    type="number"
+                                    min="0.1"
+                                    max="1200"
+                                    step="0.1"
+                                    value="50.0"
+                                    aria-label="Maximum range"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="pick-duration">
+                                Duration (seconds)
+                            </label>
+
+                            <div class="control-row">
+                                <input
+                                    id="pick-duration"
+                                    data-control="pick-duration"
+                                    type="number"
+                                    min="0.1"
+                                    max="10"
+                                    step="0.1"
+                                    value="1.0"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="pick-count">
+                                Candidates
+
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Number of choices. Exactly one candidate is the selected target note."
+                                    data-tooltip="Number of choices. Exactly one candidate is the selected target note."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
+
+                            <div class="control-row">
+                                <select
+                                    id="pick-count"
+                                    data-control="pick-count"
+                                >
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+
+                                    <option value="7" selected>7</option>
+
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pick target -->
+
+                    <div class="practice pick-practice">
+                        <div class="action-button-grid">
+                            <span
+                                class="action-spacer"
+                                aria-hidden="true"
+                            ></span>
+
+                            <button
+                                class="icon-button"
+                                data-action="stop-audio"
+                                type="button"
+                                aria-label="Stop all audio"
+                                title="Stop"
+                            >
+                                <span aria-hidden="true">■</span>
+                            </button>
+
+                            <button
+                                class="icon-button"
+                                data-action="new-pick"
+                                type="button"
+                                aria-label="New candidate set"
+                                title="New candidate set"
+                            >
+                                <span aria-hidden="true">↻</span>
+                            </button>
+                        </div>
+
+                        <div class="candidate-list" data-candidates></div>
+
+                        <dl class="stats practice-stats">
+                            <div class="stats-streak">
+                                <dt>Streak</dt>
+
+                                <dd>
+                                    <strong data-output="pick-streak">0</strong>
+
+                                    <button
+                                        class="link-button"
+                                        data-action="clear-pick-stats"
+                                        type="button"
+                                    >
+                                        Clear
+                                    </button>
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt>Mean error</dt>
+                                <dd data-output="pick-mean-error">0.0 cents</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+            </section>
+        </main>
+
+        <script src="index.js"></script>
+    </body>
 </html>
