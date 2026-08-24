@@ -226,7 +226,7 @@ select {
 /* Main */
 
 main {
-    padding-block: 18px 28px;
+    padding-block: 8px 8px;
 }
 
 .tab-panel[hidden] {
@@ -243,7 +243,7 @@ main {
     margin: -1px;
 
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
 
     white-space: nowrap;
 
@@ -771,6 +771,7 @@ footer {
     justify-content: space-between;
     align-items: center;
 
+    /* eslint-disable-next-line css/no-invalid-properties */
     padding: 0.2rem calc(0.6rem + env(safe-area-inset-right))
         calc(0.2rem + env(safe-area-inset-bottom))
         calc(0.6rem + env(safe-area-inset-left));
@@ -788,7 +789,6 @@ footer {
 }
 
 .footer-socials {
-    margin-left: auto;
     text-align: right;
 }
 
