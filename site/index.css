@@ -18,7 +18,7 @@
     --practice-detail-gap: 10px;
     --practice-row-gap: 8px;
     --stats-spacing: 8px;
-    --footer-height: 2.5rem;
+    --footer-height: 1.7rem;
 
     --background: #111;
     --surface: #1b1b1b;
@@ -46,7 +46,7 @@ body {
 body {
     overflow-x: hidden;
 
-    padding-bottom: calc(var(--footer-height) + 1rem);
+    padding-bottom: calc(var(--footer-height) + 0.85rem);
 
     background: var(--background);
     color: var(--text);
@@ -766,15 +766,13 @@ footer {
     right: 0;
     bottom: 0;
     left: 0;
+    height: var(--footer-height);
 
     display: flex;
     justify-content: space-between;
     align-items: center;
 
-    /* eslint-disable-next-line css/no-invalid-properties */
-    padding: 0.2rem calc(0.6rem + env(safe-area-inset-right))
-        calc(0.2rem + env(safe-area-inset-bottom))
-        calc(0.6rem + env(safe-area-inset-left));
+    padding: 0 1rem;
 
     font-size: 0.85rem;
 

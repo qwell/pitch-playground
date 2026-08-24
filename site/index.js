@@ -1468,39 +1468,11 @@ function initializeEvents() {
         .addEventListener('click', clearPickStats);
 }
 
-let footerResizeObserver = null;
-
-function initializeFooterClearance() {
-    const footer = document.querySelector('footer');
-
-    if (!footer) {
-        return;
-    }
-
-    const updateFooterHeight = () => {
-        document.documentElement.style.setProperty(
-            '--footer-height',
-            `${Math.ceil(footer.getBoundingClientRect().height)}px`
-        );
-    };
-
-    updateFooterHeight();
-
-    if ('ResizeObserver' in window) {
-        footerResizeObserver = new ResizeObserver(updateFooterHeight);
-        footerResizeObserver.observe(footer);
-        return;
-    }
-
-    window.addEventListener('resize', updateFooterHeight);
-}
-
 // Initialization
 
 function initialize() {
     initializeTabs();
     initializeNotes();
-    initializeFooterClearance();
 
     updateNoteReadouts();
 
