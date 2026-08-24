@@ -569,7 +569,7 @@ function tapTempo() {
     metronome.tapTimes.push(now);
     metronome.tapTimes = metronome.tapTimes.slice(-5);
 
-    if (metronome.tapTimes.length < 2) {
+    if (metronome.tapTimes.length < 3) {
         return;
     }
 
