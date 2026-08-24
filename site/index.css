@@ -414,6 +414,10 @@ main {
     grid-template-areas: 'actions .';
 }
 
+.metronome-practice {
+    grid-template-areas: 'actions .';
+}
+
 .placement-practice {
     grid-template-areas:
         'actions .'
@@ -455,6 +459,7 @@ main {
 }
 
 .action-button-grid [data-action='play-tuner'],
+.action-button-grid [data-action='play-metronome'],
 .action-button-grid [data-action='play-placement'] {
     grid-column: 1;
 }
@@ -463,6 +468,7 @@ main {
     grid-column: 2;
 }
 
+.action-button-grid [data-action='tap-tempo'],
 .action-button-grid [data-action='new-placement'],
 .action-button-grid [data-action='new-pick'] {
     grid-column: 3;

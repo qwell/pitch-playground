@@ -2,6 +2,30 @@
 
 const DEFAULT_A4 = 440;
 const DEFAULT_MIDI = 69;
+
+const METRONOME_LOOKAHEAD_MS = 25;
+const METRONOME_SCHEDULE_AHEAD_SECONDS = 0.1;
+const METRONOME_CLICK_DURATION = 0.035;
+const METRONOME_NORMAL_HZ = 800;
+const METRONOME_GROUP_HZ = 1000;
+const METRONOME_FIRST_HZ = 1200;
+
+const METRONOME_METERS = {
+    '2/4': [2, 0],
+    '3/4': [2, 0, 0],
+    '4/4': [2, 0, 0, 0],
+
+    '2/2': [2, 0],
+    '3/8': [2, 0, 0],
+
+    '6/8': [2, 0, 0, 1, 0, 0],
+    '9/8': [2, 0, 0, 1, 0, 0, 1, 0, 0],
+    '12/8': [2, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+
+    '5/4': [2, 0, 0, 1, 0],
+    '7/8': [2, 0, 1, 0, 1, 0, 0],
+};
+
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
 const PLACEMENT_ADVANCE_DELAY = 3000;
@@ -115,6 +139,10 @@ const audio = (() => {
         }
 
         return context;
+    }
+
+    function currentTime() {
+        return ensureContext().currentTime;
     }
 
     function cancelAndHold(parameter, time) {
@@ -296,6 +324,7 @@ const audio = (() => {
     }
 
     return {
+        currentTime,
         playContinuous,
         playTransient,
         stopTransient,
@@ -315,6 +344,7 @@ function stopTuner() {
 
 function stopAllAudio() {
     stopTuner();
+    stopMetronome();
     audio.stopTransient();
 }
 
@@ -440,7 +470,133 @@ function playTuner() {
     );
 }
 
-// Pitch placement
+// Metronome
+
+const metronome = {
+    running: false,
+    timer: null,
+    nextBeatTime: 0,
+    beatIndex: 0,
+    tapTimes: [],
+};
+
+function scheduleMetronome() {
+    if (!metronome.running) {
+        return;
+    }
+
+    const bpm = readNumber(
+        document.querySelector('[data-control="metronome-bpm"]'),
+        100
+    );
+
+    const signature = document.querySelector(
+        '[data-control="metronome-time-signature"]'
+    ).value;
+
+    const pattern = METRONOME_METERS[signature] || METRONOME_METERS['4/4'];
+
+    const compound =
+        signature === '6/8' || signature === '9/8' || signature === '12/8';
+
+    const secondsPerClick = compound ? 60 / bpm / 3 : 60 / bpm;
+
+    const now = audio.currentTime();
+
+    while (metronome.nextBeatTime < now + METRONOME_SCHEDULE_AHEAD_SECONDS) {
+        const accent = pattern[metronome.beatIndex];
+
+        const frequency =
+            accent === 2
+                ? METRONOME_FIRST_HZ
+                : accent === 1
+                  ? METRONOME_GROUP_HZ
+                  : METRONOME_NORMAL_HZ;
+
+        const volume = accent === 2 ? 0.9 : accent === 1 ? 0.75 : 0.6;
+
+        audio.playTransient(
+            frequency,
+            'sine',
+            METRONOME_CLICK_DURATION,
+            volume,
+            Math.max(0, metronome.nextBeatTime - now)
+        );
+
+        metronome.nextBeatTime += secondsPerClick;
+
+        metronome.beatIndex = (metronome.beatIndex + 1) % pattern.length;
+    }
+}
+
+function startMetronome() {
+    if (metronome.running) {
+        return;
+    }
+
+    stopAllAudio();
+
+    metronome.running = true;
+    metronome.beatIndex = 0;
+    metronome.nextBeatTime = audio.currentTime() + 0.05;
+
+    scheduleMetronome();
+
+    metronome.timer = window.setInterval(
+        scheduleMetronome,
+        METRONOME_LOOKAHEAD_MS
+    );
+}
+
+function stopMetronome() {
+    metronome.running = false;
+    metronome.beatIndex = 0;
+
+    if (metronome.timer !== null) {
+        clearInterval(metronome.timer);
+        metronome.timer = null;
+    }
+}
+
+function tapTempo() {
+    const now = performance.now();
+    const previous = metronome.tapTimes.at(-1);
+
+    if (previous !== undefined && now - previous > 2000) {
+        metronome.tapTimes = [];
+    }
+
+    metronome.tapTimes.push(now);
+    metronome.tapTimes = metronome.tapTimes.slice(-5);
+
+    if (metronome.tapTimes.length < 2) {
+        return;
+    }
+
+    const intervals = [];
+
+    for (let index = 1; index < metronome.tapTimes.length; index += 1) {
+        intervals.push(
+            metronome.tapTimes[index] - metronome.tapTimes[index - 1]
+        );
+    }
+
+    const averageInterval =
+        intervals.reduce((total, interval) => total + interval, 0) /
+        intervals.length;
+
+    const bpmInput = document.querySelector('[data-control="metronome-bpm"]');
+
+    const bpm = clamp(
+        Math.round(60000 / averageInterval),
+        Number(bpmInput.min),
+        Number(bpmInput.max)
+    );
+
+    bpmInput.value = String(bpm);
+}
+
+// Pitch Placement
 
 function defaultPlacementStats() {
     return {
@@ -1166,6 +1322,25 @@ function initializeEvents() {
                 );
             }
         });
+
+    document
+        .querySelector('[data-control="metronome-time-signature"]')
+        .addEventListener('change', () => {
+            metronome.beatIndex = 0;
+
+            if (metronome.running) {
+                audio.stopTransient();
+                metronome.nextBeatTime = audio.currentTime() + 0.05;
+            }
+        });
+
+    document
+        .querySelector('[data-action="play-metronome"]')
+        .addEventListener('click', startMetronome);
+
+    document
+        .querySelector('[data-action="tap-tempo"]')
+        .addEventListener('click', tapTempo);
 
     document
         .querySelector('[data-note="placement"]')
