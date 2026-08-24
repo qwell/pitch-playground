@@ -10,7 +10,7 @@
     <body>
         <header class="topbar">
             <div class="page-width topbar-inner">
-                <strong class="brand-name">Pitch Playground</strong>
+                <h1 class="brand-name">Pitch Playground</h1>
 
                 <div class="global-reference">
                     <label for="global-a4"> A4 reference (Hz) </label>
@@ -85,7 +85,8 @@
                 aria-labelledby="tab-tuning"
             >
                 <section class="experiment">
-                    <p class="blurb">Play a known note as a reference.</p>
+                    <h2 class="sr-only">Tuning</h2>
+                    <h3 class="blurb">Play a known note as a reference.</h3>
 
                     <div class="form-grid">
                         <div class="field">
@@ -167,10 +168,11 @@
                 hidden
             >
                 <section class="experiment">
-                    <p class="blurb">
+                    <h2 class="sr-only">Pitch Placement</h2>
+                    <h3 class="blurb">
                         Hear a reference followed by a mistuned target. Decide
                         whether the target landed flat or sharp.
-                    </p>
+                    </h3>
 
                     <div class="form-grid">
                         <div class="field">
@@ -417,10 +419,11 @@
                 hidden
             >
                 <section class="experiment">
-                    <p class="blurb">
+                    <h2 class="sr-only">Pick Target</h2>
+                    <h3 class="blurb">
                         Listen to candidates and choose the tone that matches
                         the selected note.
-                    </p>
+                    </h3>
 
                     <div class="form-grid">
                         <div class="field">
@@ -545,10 +548,10 @@
                                     <option value="2">2</option>
                                     <option value="3">3</option>
                                     <option value="4">4</option>
-                                    <option value="5">5</option>
+                                    <option value="5" selected>5</option>
                                     <option value="6">6</option>
 
-                                    <option value="7" selected>7</option>
+                                    <option value="7">7</option>
 
                                     <option value="8">8</option>
                                     <option value="9">9</option>
@@ -584,6 +587,13 @@
 
                         <div class="candidate-list" data-candidates></div>
 
+                        <div
+                            class="sr-only"
+                            data-output="pick-status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                        ></div>
+
                         <dl class="stats practice-stats">
                             <div class="stats-streak">
                                 <dt>Streak</dt>
@@ -610,6 +620,28 @@
                 </section>
             </section>
         </main>
+
+        <footer>
+            <div class="footer-source">
+                <a
+                    href="https://github.com/qwell/pitch-playground"
+                    target="_blank"
+                    rel="noopener"
+                    >Source Code</a
+                >
+            </div>
+
+            <div class="footer-socials">
+                Jason Parker on Mastodon:
+                <a
+                    rel="me noopener"
+                    href="https://ꩰ.com/@north"
+                    target="_blank"
+                >
+                    @north@ꩰ.com
+                </a>
+            </div>
+        </footer>
 
         <script src="index.js"></script>
     </body>

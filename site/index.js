@@ -3,6 +3,7 @@
 const DEFAULT_A4 = 440;
 const DEFAULT_MIDI = 69;
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
+const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
 const PLACEMENT_ADVANCE_DELAY = 3000;
 const MASTER_GAIN = 0.55;
 const VOICE_GAIN = 0.16;
@@ -27,7 +28,13 @@ function clamp(value, minimum, maximum) {
 }
 
 function readNumber(input, fallback) {
-    const value = Number(input.value);
+    const rawValue = input.value.trim();
+
+    if (rawValue === '') {
+        return fallback;
+    }
+
+    const value = Number(rawValue);
 
     if (!Number.isFinite(value)) {
         return fallback;
@@ -435,16 +442,53 @@ function playTuner() {
 
 // Pitch placement
 
-const placement = {
-    trial: null,
-    advanceTimer: null,
-
-    stats: {
+function defaultPlacementStats() {
+    return {
         streak: 0,
         trials: 0,
         errorTotal: 0,
         best: null,
-    },
+    };
+}
+
+function loadPlacementStats() {
+    try {
+        const stored = JSON.parse(
+            localStorage.getItem(PLACEMENT_STATS_KEY) || 'null'
+        );
+
+        if (!stored || typeof stored !== 'object') {
+            return defaultPlacementStats();
+        }
+
+        return {
+            streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+            trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+            errorTotal: Number.isFinite(stored.errorTotal)
+                ? stored.errorTotal
+                : 0,
+            best: Number.isFinite(stored.best) ? stored.best : null,
+        };
+    } catch {
+        return defaultPlacementStats();
+    }
+}
+
+function savePlacementStats() {
+    try {
+        localStorage.setItem(
+            PLACEMENT_STATS_KEY,
+            JSON.stringify(placement.stats)
+        );
+    } catch {
+        // Storage is optional.
+    }
+}
+
+const placement = {
+    trial: null,
+    advanceTimer: null,
+    stats: loadPlacementStats(),
 };
 
 function cancelPlacementAdvance() {
@@ -493,12 +537,13 @@ function renderPlacementStats() {
 }
 
 function clearPlacementStats() {
-    placement.stats = {
-        streak: 0,
-        trials: 0,
-        errorTotal: 0,
-        best: null,
-    };
+    placement.stats = defaultPlacementStats();
+
+    try {
+        localStorage.removeItem(PLACEMENT_STATS_KEY);
+    } catch {
+        // Storage is optional.
+    }
 
     renderPlacementStats();
 }
@@ -535,14 +580,33 @@ function setJudgmentState({ disabled, selected = null, correct = null }) {
     }
 }
 
+function writeNumberIfChanged(input, value) {
+    const rawValue = input.value.trim();
+    const currentValue = rawValue === '' ? NaN : Number(rawValue);
+
+    if (!Number.isFinite(currentValue) || currentValue !== value) {
+        input.value = String(value);
+    }
+}
+
+function normalizeNumberInput(input, fallback) {
+    const value = readNumber(input, fallback);
+
+    writeNumberIfChanged(input, value);
+
+    return value;
+}
+
 function readRange(minimumInput, maximumInput, defaultMinimum, defaultMaximum) {
     let minimum = readNumber(minimumInput, defaultMinimum);
-
     let maximum = readNumber(maximumInput, defaultMaximum);
 
     if (minimum > maximum) {
         [minimum, maximum] = [maximum, minimum];
     }
+
+    writeNumberIfChanged(minimumInput, minimum);
+    writeNumberIfChanged(maximumInput, maximum);
 
     return {
         minimum,
@@ -682,6 +746,7 @@ function commitPlacement(judgment) {
         placement.stats.best = distance;
     }
 
+    savePlacementStats();
     renderPlacementStats();
 
     const result = document.querySelector('[data-output="placement-result"]');
@@ -803,6 +868,8 @@ function newPickSet() {
 
     pick.committed = false;
     pick.selectedIndex = null;
+
+    document.querySelector('[data-output="pick-status"]').textContent = '';
 
     renderCandidates();
 }
@@ -954,14 +1021,22 @@ function playCandidate(index) {
     }
 }
 
+let pickStatsCache = null;
+
 function loadPickStats() {
+    if (pickStatsCache !== null) {
+        return pickStatsCache;
+    }
+
     try {
         const stats = JSON.parse(localStorage.getItem(PICK_STATS_KEY) || '[]');
 
-        return Array.isArray(stats) ? stats : [];
+        pickStatsCache = Array.isArray(stats) ? stats : [];
     } catch {
-        return [];
+        pickStatsCache = [];
     }
+
+    return pickStatsCache;
 }
 
 function savePickStat(errorCents) {
@@ -977,11 +1052,27 @@ function savePickStat(errorCents) {
         errorCents,
     });
 
-    localStorage.setItem(
-        PICK_STATS_KEY,
+    if (stats.length > 500) {
+        stats.splice(0, stats.length - 500);
+    }
 
-        JSON.stringify(stats.slice(-500))
-    );
+    try {
+        localStorage.setItem(PICK_STATS_KEY, JSON.stringify(stats));
+    } catch {
+        // Persistence is optional; keep the exercise usable without storage.
+    }
+}
+
+function clearPickStats() {
+    loadPickStats().length = 0;
+
+    try {
+        localStorage.removeItem(PICK_STATS_KEY);
+    } catch {
+        // Persistence is optional; still refresh the visible stats.
+    }
+
+    renderPickStats();
 }
 
 function currentPickStreak(stats) {
@@ -1038,6 +1129,17 @@ function commitPick(index) {
 
     renderCandidates();
     renderPickStats();
+
+    const targetIndex = pick.candidates.indexOf(target);
+    const status = document.querySelector('[data-output="pick-status"]');
+    const newPickButton = document.querySelector('[data-action="new-pick"]');
+
+    newPickButton?.focus();
+
+    status.textContent = selected.isTarget
+        ? `Correct. Candidate ${index + 1} matched the target.`
+        : `Incorrect. Candidate ${index + 1} selected; ` +
+          `candidate ${targetIndex + 1} was the target.`;
 }
 
 // Events
@@ -1093,9 +1195,25 @@ function initializeEvents() {
         control.addEventListener('change', newPickSet);
     }
 
+    const a4Input = document.querySelector('[data-control="a4"]');
+
+    a4Input.addEventListener('input', resetForReferenceChange);
+    a4Input.addEventListener('change', () => {
+        normalizeNumberInput(a4Input, DEFAULT_A4);
+        resetForReferenceChange();
+    });
+
     document
-        .querySelector('[data-control="a4"]')
-        .addEventListener('input', resetForReferenceChange);
+        .querySelector('[data-control="placement-duration"]')
+        .addEventListener('change', (event) => {
+            normalizeNumberInput(event.currentTarget, 1);
+        });
+
+    document
+        .querySelector('[data-control="pick-duration"]')
+        .addEventListener('change', (event) => {
+            normalizeNumberInput(event.currentTarget, 1);
+        });
 
     document
         .querySelector('[data-action="reset-a4"]')
@@ -1172,11 +1290,34 @@ function initializeEvents() {
 
     document
         .querySelector('[data-action="clear-pick-stats"]')
-        .addEventListener('click', () => {
-            localStorage.removeItem(PICK_STATS_KEY);
+        .addEventListener('click', clearPickStats);
+}
 
-            renderPickStats();
-        });
+let footerResizeObserver = null;
+
+function initializeFooterClearance() {
+    const footer = document.querySelector('footer');
+
+    if (!footer) {
+        return;
+    }
+
+    const updateFooterHeight = () => {
+        document.documentElement.style.setProperty(
+            '--footer-height',
+            `${Math.ceil(footer.getBoundingClientRect().height)}px`
+        );
+    };
+
+    updateFooterHeight();
+
+    if ('ResizeObserver' in window) {
+        footerResizeObserver = new ResizeObserver(updateFooterHeight);
+        footerResizeObserver.observe(footer);
+        return;
+    }
+
+    window.addEventListener('resize', updateFooterHeight);
 }
 
 // Initialization
@@ -1184,11 +1325,12 @@ function initializeEvents() {
 function initialize() {
     initializeTabs();
     initializeNotes();
+    initializeFooterClearance();
 
     updateNoteReadouts();
 
     clearPlacementResult();
-    clearPlacementStats();
+    renderPlacementStats();
 
     newPlacementTrial();
     newPickSet();
