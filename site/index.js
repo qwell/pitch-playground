@@ -362,7 +362,7 @@ function createNoteOption(midi) {
 function populateNoteSelector(select) {
     const options = [];
 
-    for (let midi = 48; midi <= 84; midi += 1) {
+    for (let midi = 36; midi <= 84; midi += 1) {
         options.push(createNoteOption(midi));
     }
 
