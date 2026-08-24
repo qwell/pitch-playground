@@ -782,6 +782,8 @@ footer {
     background: #181818;
 
     border-top: 1px solid #333;
+
+    line-height: 1.6;
 }
 
 .footer-source {
@@ -790,6 +792,7 @@ footer {
 
 .footer-socials {
     text-align: right;
+    padding-top: 2px;
 }
 
 footer a {
