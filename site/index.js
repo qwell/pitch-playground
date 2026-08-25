@@ -3,6 +3,16 @@
 const DEFAULT_A4 = 440;
 const DEFAULT_MIDI = 69;
 
+const TUNER_ANALYSIS_INTERVAL_MS = 50;
+const TUNER_SMOOTHING = 0.18;
+const TUNER_MIN_RMS = 0.006;
+const TUNER_STABLE_FRAMES = 3;
+const TUNER_YIN_THRESHOLD = 0.15;
+const TUNER_HISTORY_LENGTH = 5;
+
+const TUNER_MIN_HZ = 50;
+const TUNER_MAX_HZ = 4200;
+
 const METRONOME_LOOKAHEAD_MS = 25;
 const METRONOME_SCHEDULE_AHEAD_SECONDS = 0.1;
 const METRONOME_CLICK_DURATION = 0.035;
@@ -323,15 +333,42 @@ const audio = (() => {
         transientVoices.clear();
     }
 
+    function createAnalyser(stream, fftSize = 2048) {
+        const audioContext = ensureContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+
+        analyser.fftSize = fftSize;
+        analyser.smoothingTimeConstant = 0;
+
+        source.connect(analyser);
+
+        return {
+            analyser,
+            source,
+            sampleRate: audioContext.sampleRate,
+        };
+    }
+
     return {
         currentTime,
         playContinuous,
         playTransient,
         stopTransient,
+        createAnalyser,
     };
 })();
 
 let tunerVoice = null;
+
+function playTuner() {
+    stopGeneratedAudio();
+
+    tunerVoice = audio.playContinuous(
+        selectedNoteFrequency(document.querySelector('[data-note="tuner"]')),
+        document.querySelector('[data-waveform="tuner"]').value
+    );
+}
 
 function stopTuner() {
     if (!tunerVoice) {
@@ -342,10 +379,15 @@ function stopTuner() {
     tunerVoice = null;
 }
 
-function stopAllAudio() {
+function stopGeneratedAudio() {
     stopTuner();
     stopMetronome();
     audio.stopTransient();
+}
+
+function stopAllAudio() {
+    stopGeneratedAudio();
+    stopMicTuner();
 }
 
 // Notes
@@ -461,13 +503,429 @@ function initializeTabs() {
 
 // Tuning
 
-function playTuner() {
-    stopAllAudio();
+const tunerMic = {
+    stream: null,
+    source: null,
+    analyser: null,
+    sampleRate: 0,
+    buffer: null,
+    frame: null,
 
-    tunerVoice = audio.playContinuous(
-        selectedNoteFrequency(document.querySelector('[data-note="tuner"]')),
-        document.querySelector('[data-waveform="tuner"]').value
+    requestId: 0,
+
+    smoothedCents: null,
+    smoothedNoteMidi: null,
+
+    pendingMidi: null,
+    pendingFrames: 0,
+
+    lastAnalysisTime: 0,
+    lastValidTime: 0,
+
+    history: [],
+};
+
+function setTunerStatus(text) {
+    document.querySelector('[data-output="tuner-status"]').textContent = text;
+}
+
+function setTunerMicButtonActive(active) {
+    const button = document.querySelector('[data-action="toggle-tuner-mic"]');
+
+    button.classList.toggle('active', active);
+
+    button.setAttribute('aria-pressed', String(active));
+
+    button.setAttribute(
+        'aria-label',
+        active ? 'Stop microphone tuner' : 'Start microphone tuner'
     );
+}
+
+function resetTunerTracking(resetPending) {
+    tunerMic.history = [];
+
+    tunerMic.smoothedCents = null;
+    tunerMic.smoothedNoteMidi = null;
+
+    if (resetPending) {
+        tunerMic.pendingMidi = null;
+        tunerMic.pendingFrames = 0;
+    }
+}
+
+function resetTunerDetection(status = 'Microphone off') {
+    document.querySelector('[data-output="tuner-closest"]').textContent = '--';
+
+    document.querySelector('[data-output="tuner-target"]').textContent =
+        '-- Hz';
+
+    document.querySelector('[data-output="tuner-detected"]').textContent =
+        '-- Hz detected';
+
+    document.querySelector('[data-output="tuner-cents"]').textContent = '--';
+
+    const needle = document.querySelector('[data-output="tuner-needle"]');
+    needle.classList.remove('visible', 'in-tune');
+
+    setTunerStatus(status);
+}
+
+function stopMicTuner() {
+    tunerMic.requestId += 1;
+
+    if (tunerMic.frame !== null) {
+        cancelAnimationFrame(tunerMic.frame);
+
+        tunerMic.frame = null;
+    }
+
+    if (tunerMic.source) {
+        tunerMic.source.disconnect();
+
+        tunerMic.source = null;
+    }
+
+    if (tunerMic.stream) {
+        for (const track of tunerMic.stream.getTracks()) {
+            track.stop();
+        }
+
+        tunerMic.stream = null;
+    }
+
+    tunerMic.analyser = null;
+
+    tunerMic.sampleRate = 0;
+
+    tunerMic.buffer = null;
+
+    tunerMic.lastAnalysisTime = 0;
+
+    tunerMic.lastValidTime = 0;
+
+    resetTunerTracking(true);
+
+    setTunerMicButtonActive(false);
+
+    resetTunerDetection();
+}
+
+function median(values) {
+    const sorted = [...values].sort((left, right) => left - right);
+
+    const middle = Math.floor(sorted.length / 2);
+
+    if (sorted.length % 2 === 1) {
+        return sorted[middle];
+    }
+
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function detectPitchYin(
+    samples,
+    sampleRate,
+    minimumHz,
+    maximumHz,
+    threshold = TUNER_YIN_THRESHOLD
+) {
+    let squareTotal = 0;
+
+    for (const sample of samples) {
+        squareTotal += sample * sample;
+    }
+
+    const rms = Math.sqrt(squareTotal / samples.length);
+
+    if (rms < TUNER_MIN_RMS) {
+        return null;
+    }
+
+    const minimumPeriod = Math.max(2, Math.floor(sampleRate / maximumHz));
+
+    const maximumPeriod = Math.min(
+        Math.floor(sampleRate / minimumHz),
+        Math.floor(samples.length / 2)
+    );
+
+    if (maximumPeriod <= minimumPeriod + 2) {
+        return null;
+    }
+
+    const difference = new Float32Array(maximumPeriod + 1);
+
+    const windowLength = samples.length - maximumPeriod;
+
+    for (let period = 1; period <= maximumPeriod; period += 1) {
+        let total = 0;
+
+        for (let index = 0; index < windowLength; index += 1) {
+            const delta = samples[index] - samples[index + period];
+
+            total += delta * delta;
+        }
+
+        difference[period] = total;
+    }
+
+    difference[0] = 1;
+
+    let runningTotal = 0;
+
+    for (let period = 1; period <= maximumPeriod; period += 1) {
+        runningTotal += difference[period];
+
+        difference[period] =
+            runningTotal === 0
+                ? 1
+                : (difference[period] * period) / runningTotal;
+    }
+
+    let bestPeriod = -1;
+
+    for (let period = minimumPeriod; period <= maximumPeriod; period += 1) {
+        if (difference[period] >= threshold) {
+            continue;
+        }
+
+        while (
+            period + 1 <= maximumPeriod &&
+            difference[period + 1] < difference[period]
+        ) {
+            period += 1;
+        }
+
+        bestPeriod = period;
+
+        break;
+    }
+
+    if (bestPeriod === -1) {
+        let bestValue = Infinity;
+
+        for (let period = minimumPeriod; period <= maximumPeriod; period += 1) {
+            if (difference[period] < bestValue) {
+                bestValue = difference[period];
+
+                bestPeriod = period;
+            }
+        }
+
+        if (bestPeriod === -1 || bestValue > 0.25) {
+            return null;
+        }
+    }
+
+    let refinedPeriod = bestPeriod;
+
+    if (bestPeriod > 1 && bestPeriod < maximumPeriod) {
+        const left = difference[bestPeriod - 1];
+
+        const center = difference[bestPeriod];
+
+        const right = difference[bestPeriod + 1];
+
+        const denominator = left - 2 * center + right;
+
+        if (Math.abs(denominator) > 1e-12) {
+            refinedPeriod += (0.5 * (left - right)) / denominator;
+        }
+    }
+
+    if (!Number.isFinite(refinedPeriod) || refinedPeriod <= 0) {
+        return null;
+    }
+
+    return sampleRate / refinedPeriod;
+}
+
+function nearestMusicalNote(frequencyHz) {
+    /*
+     * MIDI 69 is A4.
+     * The user's global A4 reference is
+     * respected here.
+     */
+    const exactMidi = 69 + 12 * Math.log2(frequencyHz / getA4());
+
+    const midi = Math.round(exactMidi);
+
+    const targetHz = midiFrequency(midi);
+
+    return {
+        midi,
+
+        name: midiToNoteName(midi),
+
+        targetHz,
+
+        cents: centsBetween(frequencyHz, targetHz),
+    };
+}
+
+function renderTunerDetection(frequencyHz) {
+    const nearest = nearestMusicalNote(frequencyHz);
+
+    if (tunerMic.smoothedNoteMidi !== nearest.midi) {
+        tunerMic.smoothedNoteMidi = nearest.midi;
+
+        tunerMic.smoothedCents = nearest.cents;
+    } else {
+        tunerMic.smoothedCents +=
+            (nearest.cents - tunerMic.smoothedCents) * TUNER_SMOOTHING;
+    }
+
+    const cents = tunerMic.smoothedCents;
+
+    const limitedCents = clamp(cents, -50, 50);
+
+    const percent = limitedCents + 50;
+
+    document.querySelector('[data-output="tuner-closest"]').textContent =
+        nearest.name;
+
+    document.querySelector('[data-output="tuner-target"]').textContent =
+        `${nearest.targetHz.toFixed(3)} Hz`;
+
+    document.querySelector('[data-output="tuner-detected"]').textContent =
+        `${frequencyHz.toFixed(3)} Hz detected`;
+
+    document.querySelector('[data-output="tuner-cents"]').textContent =
+        `${signed(cents, 1)} cents`;
+
+    const inTune = Math.abs(cents) <= 3;
+
+    const needle = document.querySelector('[data-output="tuner-needle"]');
+    needle.style.left = `${percent}%`;
+    needle.classList.add('visible');
+    needle.classList.toggle('in-tune', inTune);
+}
+
+function analyzeTunerMic(time) {
+    if (!tunerMic.analyser || !tunerMic.buffer) {
+        return;
+    }
+
+    if (time - tunerMic.lastAnalysisTime >= TUNER_ANALYSIS_INTERVAL_MS) {
+        tunerMic.lastAnalysisTime = time;
+
+        tunerMic.analyser.getFloatTimeDomainData(tunerMic.buffer);
+
+        const frequencyHz = detectPitchYin(
+            tunerMic.buffer,
+            tunerMic.sampleRate,
+            TUNER_MIN_HZ,
+            TUNER_MAX_HZ
+        );
+
+        if (frequencyHz !== null) {
+            const nearest = nearestMusicalNote(frequencyHz);
+
+            if (nearest.midi !== tunerMic.pendingMidi) {
+                tunerMic.pendingMidi = nearest.midi;
+
+                tunerMic.pendingFrames = 1;
+
+                tunerMic.history = [];
+            } else {
+                tunerMic.pendingFrames += 1;
+            }
+
+            if (tunerMic.pendingFrames >= TUNER_STABLE_FRAMES) {
+                tunerMic.lastValidTime = time;
+
+                tunerMic.history.push(frequencyHz);
+
+                if (tunerMic.history.length > TUNER_HISTORY_LENGTH) {
+                    tunerMic.history.shift();
+                }
+
+                renderTunerDetection(median(tunerMic.history));
+            }
+        }
+
+        if (time - tunerMic.lastValidTime > 400) {
+            resetTunerTracking(frequencyHz === null);
+
+            resetTunerDetection('No stable pitch');
+        }
+    }
+
+    tunerMic.frame = requestAnimationFrame(analyzeTunerMic);
+}
+
+async function startMicTuner() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        resetTunerDetection('Microphone access unavailable');
+
+        return;
+    }
+
+    if (tunerMic.stream) {
+        return;
+    }
+
+    const requestId = ++tunerMic.requestId;
+
+    resetTunerDetection('Requesting microphone access...');
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+        });
+
+        if (requestId !== tunerMic.requestId) {
+            for (const track of stream.getTracks()) {
+                track.stop();
+            }
+
+            return;
+        }
+
+        const connection = audio.createAnalyser(stream, 2048);
+
+        tunerMic.stream = stream;
+
+        tunerMic.source = connection.source;
+
+        tunerMic.analyser = connection.analyser;
+
+        tunerMic.sampleRate = connection.sampleRate;
+
+        tunerMic.buffer = new Float32Array(tunerMic.analyser.fftSize);
+
+        tunerMic.lastAnalysisTime = 0;
+
+        tunerMic.lastValidTime = performance.now();
+
+        resetTunerTracking(true);
+
+        setTunerMicButtonActive(true);
+
+        setTunerStatus('Listening...');
+
+        tunerMic.frame = requestAnimationFrame(analyzeTunerMic);
+    } catch (error) {
+        const message =
+            error?.name === 'NotAllowedError'
+                ? 'Microphone permission denied'
+                : error?.name === 'NotFoundError'
+                  ? 'No microphone found'
+                  : 'Could not start microphone';
+
+        resetTunerDetection(message);
+    }
+}
+
+function toggleMicTuner() {
+    if (tunerMic.stream) {
+        stopMicTuner();
+
+        return;
+    }
+
+    void startMicTuner();
 }
 
 // Metronome
@@ -1301,8 +1759,10 @@ function commitPick(index) {
 // Events
 
 function resetForReferenceChange() {
-    stopAllAudio();
+    stopGeneratedAudio();
     cancelPlacementAdvance();
+
+    resetTunerTracking(true);
 
     updateNoteReadouts();
 
@@ -1404,6 +1864,10 @@ function initializeEvents() {
         .addEventListener('click', playTuner);
 
     document
+        .querySelector('[data-action="toggle-tuner-mic"]')
+        .addEventListener('click', toggleMicTuner);
+
+    document
         .querySelector('[data-action="play-placement"]')
         .addEventListener('click', playPlacementTrial);
 
@@ -1433,7 +1897,7 @@ function initializeEvents() {
     }
 
     for (const waveform of document.querySelectorAll('.waveform-select')) {
-        waveform.addEventListener('change', stopAllAudio);
+        waveform.addEventListener('change', stopGeneratedAudio);
     }
 
     document
@@ -1475,6 +1939,8 @@ function initialize() {
     initializeNotes();
 
     updateNoteReadouts();
+
+    resetTunerDetection();
 
     clearPlacementResult();
     renderPlacementStats();

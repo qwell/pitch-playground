@@ -77,9 +77,9 @@
                         ],
                         "isAccessibleForFree": true,
                         "operatingSystem": "Any",
-                        "browserRequirements": "Requires a modern web browser with Web Audio API support.",
-                        "datePublished": "2026-08-23",
-                        "dateModified": "2026-08-23",
+                        "browserRequirements": "Requires a modern web browser with Web Audio API support. Microphone tuning requires MediaDevices support and microphone permission.",
+                        "datePublished": "2026-08-25",
+                        "dateModified": "2026-08-25",
                         "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
                         "author": {
                             "@id": "https://p.jeltz.org/#jason-parker"
@@ -154,8 +154,8 @@
                         },
                         "codeRepository": "https://github.com/qwell/pitch-playground",
                         "programmingLanguage": ["JavaScript", "HTML", "CSS"],
-                        "datePublished": "2026-08-23",
-                        "dateModified": "2026-08-23",
+                        "datePublished": "2026-08-25",
+                        "dateModified": "2026-08-25",
                         "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
                         "author": {
                             "@id": "https://p.jeltz.org/#jason-parker"
@@ -281,7 +281,11 @@
                 aria-labelledby="tab-tuning"
             >
                 <h2 class="sr-only">Tuning</h2>
-                <h3 class="blurb">Play a known note as a reference.</h3>
+                <h3 class="blurb">
+                    Play a known note as a reference, or use the microphone to
+                    identify a live pitch and see how far it is from the nearest
+                    note.
+                </h3>
 
                 <div class="form-grid">
                     <div class="field">
@@ -343,11 +347,118 @@
                             class="icon-button"
                             data-action="stop-audio"
                             type="button"
-                            aria-label="Stop all audio"
+                            aria-label="Stop all audio and microphone"
                             title="Stop"
                         >
                             <span aria-hidden="true">■</span>
                         </button>
+
+                        <button
+                            class="icon-button tuner-mic-button"
+                            data-action="toggle-tuner-mic"
+                            type="button"
+                            aria-label="Start microphone tuner"
+                            aria-pressed="false"
+                            title="Microphone tuner"
+                        >
+                            Mic
+                        </button>
+                    </div>
+
+                    <div class="tuner-meter">
+                        <div class="tuner-header">
+                            <strong
+                                class="tuner-note"
+                                data-output="tuner-closest"
+                            >
+                                --
+                            </strong>
+
+                            <span
+                                class="tuner-target-frequency"
+                                data-output="tuner-target"
+                            >
+                                -- Hz
+                            </span>
+                        </div>
+
+                        <div class="tuner-gauge">
+                            <div class="tuner-scale" aria-hidden="true">
+                                <span class="tuner-scale-left">-50</span>
+                                <span class="tuner-scale-center">0 cents</span>
+                                <span class="tuner-scale-right">+50</span>
+                            </div>
+
+                            <div class="tuner-track">
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 10%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 20%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 30%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 40%"
+                                ></span>
+
+                                <span
+                                    class="tuner-tick tuner-tick-center"
+                                    style="left: 50%"
+                                ></span>
+
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 60%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 70%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 80%"
+                                ></span>
+                                <span
+                                    class="tuner-tick"
+                                    style="left: 90%"
+                                ></span>
+
+                                <span
+                                    class="tuner-needle"
+                                    data-output="tuner-needle"
+                                ></span>
+                            </div>
+                        </div>
+
+                        <div class="tuner-footer">
+                            <strong
+                                class="tuner-cents"
+                                data-output="tuner-cents"
+                            >
+                                --
+                            </strong>
+
+                            <span
+                                class="tuner-detected-frequency"
+                                data-output="tuner-detected"
+                            >
+                                -- Hz detected
+                            </span>
+                        </div>
+
+                        <div
+                            class="sr-only"
+                            data-output="tuner-status"
+                            aria-live="polite"
+                        >
+                            Microphone off
+                        </div>
                     </div>
                 </div>
             </section>
