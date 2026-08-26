@@ -131,14 +131,14 @@ select {
     display: grid;
     grid-template-columns: repeat(4, var(--field-width));
 
-    gap: var(--column-gap);
+    column-gap: var(--column-gap);
 
     align-items: center;
     justify-content: start;
 }
 
 .brand-name {
-    grid-column: 1 / 4;
+    grid-column: 1 / 3;
 
     margin: 0;
 
@@ -148,11 +148,17 @@ select {
     white-space: nowrap;
 }
 
+.global-volume {
+    grid-column: 3;
+    min-width: 0;
+}
+
 .global-reference {
     grid-column: 4;
     min-width: 0;
 }
 
+.global-volume > label,
 .global-reference > label {
     display: block;
 
@@ -162,6 +168,14 @@ select {
 
     font-size: 12px;
     line-height: 1.2;
+}
+
+.global-volume input {
+    display: block;
+
+    width: var(--control-width);
+    height: 32px;
+    margin: 0;
 }
 
 .global-reference-controls {
@@ -177,11 +191,13 @@ select {
 .global-reference-controls input {
     width: 0;
     min-width: 0;
+
     flex: 1;
 }
 
 .global-reference-controls button {
     flex: none;
+
     padding-inline: 8px;
 }
 
@@ -527,7 +543,7 @@ main {
 }
 
 .tuner-meter {
-    grid-column: 1 / 3;
+    grid-area: meter;
 
     width: calc(var(--field-width) + var(--column-gap) + var(--control-width));
 }
@@ -1003,34 +1019,51 @@ footer a:hover {
 }
 
 /* Tablet */
-
 @media (max-width: 1060px) {
     .topbar-inner,
     .form-grid {
         grid-template-columns: repeat(3, var(--field-width));
     }
 
-    .global-reference {
-        grid-column: 3;
+    .brand-name {
+        grid-column: 1;
     }
 
-    .brand-name {
-        grid-column: 1 / 3;
+    .global-volume {
+        grid-column: 2;
+    }
+
+    .global-reference {
+        grid-column: 3;
     }
 }
 
 @media (max-width: 800px) {
-    .topbar-inner,
     .form-grid {
         grid-template-columns: repeat(2, var(--field-width));
     }
 
-    .global-reference {
-        grid-column: 2;
+    .topbar-inner {
+        grid-template-columns: repeat(2, var(--field-width));
+
+        grid-template-areas:
+            'brand brand'
+            'volume reference';
+
+        column-gap: var(--column-gap);
+        row-gap: 8px;
     }
 
     .brand-name {
-        grid-column: 1;
+        grid-area: brand;
+    }
+
+    .global-volume {
+        grid-area: volume;
+    }
+
+    .global-reference {
+        grid-area: reference;
     }
 }
 
@@ -1046,40 +1079,24 @@ footer a:hover {
         width: calc(100% - 16px);
     }
 
-    /* Header: give the A4 controls what they need, title gets the rest. */
     .topbar-inner {
-        grid-template-columns: minmax(0, 1fr) minmax(112px, 128px);
-        gap: 8px;
+        grid-template-columns: repeat(2, var(--field-width));
+
+        column-gap: var(--column-gap);
+        row-gap: 8px;
     }
 
     .brand-name {
-        grid-column: 1;
-
         min-width: 0;
 
         font-size: clamp(18px, 5.5vw, 28px);
         white-space: nowrap;
     }
 
-    .global-reference {
-        grid-column: 2;
-
-        min-width: 0;
-    }
-
-    .global-reference-controls {
-        width: 100%;
-    }
-
-    .global-reference-controls input {
-        min-width: 0;
-    }
-
     .global-reference-controls button {
         padding-inline: 6px;
     }
 
-    /* Forms still use two equal shrinking columns. */
     .form-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1133,12 +1150,6 @@ footer a:hover {
         overflow-wrap: anywhere;
     }
 
-    /*
-     * Pseudo-element tooltips can't be viewport-clamped relative to their
-     * icon using CSS alone. On phones, center the tooltip in the viewport.
-     * It still appears directly below the label vertically, but can never
-     * run off either side.
-     */
     .info-tip::after {
         position: fixed;
 
@@ -1175,23 +1186,24 @@ footer a:hover {
     }
 }
 
-/*
- * Very narrow phones: only then switch to one column.
- */
+/* Very narrow phones: only then switch to one column. */
 @media (max-width: 340px) {
     :root {
         --field-width: 100%;
         --control-width: min(190px, 100%);
     }
 
-    .topbar-inner,
-    .form-grid {
+    .topbar-inner {
         grid-template-columns: minmax(0, 1fr);
+
+        grid-template-areas:
+            'brand'
+            'volume'
+            'reference';
     }
 
-    .brand-name,
-    .global-reference {
-        grid-column: 1;
+    .form-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .brand-name {

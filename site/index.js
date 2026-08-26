@@ -39,8 +39,8 @@ const METRONOME_METERS = {
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
 const PLACEMENT_ADVANCE_DELAY = 3000;
-const MASTER_GAIN = 0.55;
-const VOICE_GAIN = 0.16;
+const DEFAULT_VOLUME = 0.8;
+const VOICE_GAIN = 0.25;
 
 const NOTE_NAMES = [
     'C',
@@ -140,7 +140,7 @@ const audio = (() => {
             context = new AudioContextClass();
 
             masterGain = context.createGain();
-            masterGain.gain.value = MASTER_GAIN;
+            masterGain.gain.value = masterVolume;
             masterGain.connect(context.destination);
         }
 
@@ -191,6 +191,18 @@ const audio = (() => {
             oscillator,
             gain,
         };
+    }
+
+    function setMasterVolume(volume) {
+        masterVolume = clamp(volume, 0, 1);
+
+        if (masterGain) {
+            masterGain.gain.setTargetAtTime(
+                masterVolume,
+                context.currentTime,
+                0.01
+            );
+        }
     }
 
     function playContinuous(frequencyHz, waveform, volume = 1) {
@@ -356,8 +368,22 @@ const audio = (() => {
         playTransient,
         stopTransient,
         createAnalyser,
+        setMasterVolume,
     };
 })();
+
+let masterVolume = DEFAULT_VOLUME;
+
+function updateVolume() {
+    const input = document.querySelector('[data-control="volume"]');
+
+    const volume = clamp(Number(input.value), 0, 1);
+
+    document.querySelector('[data-output="volume-percent"]').textContent =
+        `${Math.round(volume * 100)}%`;
+
+    audio.setMasterVolume(volume);
+}
 
 let tunerVoice = null;
 
@@ -1829,6 +1855,10 @@ function initializeEvents() {
     )) {
         control.addEventListener('change', newPickSet);
     }
+
+    document
+        .querySelector('[data-control="volume"]')
+        .addEventListener('input', updateVolume);
 
     const a4Input = document.querySelector('[data-control="a4"]');
 

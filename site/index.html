@@ -195,6 +195,22 @@
             <div class="page-width topbar-inner">
                 <h1 class="brand-name">Pitch Playground</h1>
 
+                <div class="global-volume">
+                    <label for="global-volume">
+                        Volume (<span data-output="volume-percent">80%</span>)
+                    </label>
+
+                    <input
+                        id="global-volume"
+                        data-control="volume"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value="0.8"
+                    />
+                </div>
+
                 <div class="global-reference">
                     <label for="global-a4">A4 reference (Hz)</label>
                     <div class="global-reference-controls">
