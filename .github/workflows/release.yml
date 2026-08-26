@@ -20,7 +20,7 @@ jobs:
                   git archive \
                   --format=zip \
                   --output="pitch-playground-${GITHUB_REF_NAME}.zip" \
-                  "${GITHUB_SHA}:sites"
+                  "HEAD:site"
 
             - name: Create release
               env:
