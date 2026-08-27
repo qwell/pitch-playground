@@ -108,20 +108,111 @@
                         "@id": "https://p.jeltz.org/#website",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "publisher": {
+                            "@id": "https://p.jeltz.org/#jeltz"
+                        },
+                        "datePublished": "2026-08-25",
+                        "dateModified": "2026-08-27"
+                    },
+                    {
+                        "@type": "WebPage",
+                        "@id": "https://p.jeltz.org/#webpage",
+                        "url": "https://p.jeltz.org/",
+                        "name": "Pitch Playground",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#website"
+                        },
+                        "hasPart": [
+                            {
+                                "@id": "https://p.jeltz.org/#about"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#tuner"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#metronome"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#pitch-placement"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#pick-target"
+                            }
+                        ],
                         "mainEntity": {
                             "@id": "https://p.jeltz.org/#app"
+                        },
+                        "publisher": {
+                            "@id": "https://p.jeltz.org/#jeltz"
+                        },
+                        "datePublished": "2026-08-25",
+                        "dateModified": "2026-08-27"
+                    },
+                    {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#about",
+                        "name": "About",
+                        "description": "Information about Pitch Playground, its features, and usage.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
                         }
                     },
                     {
-                        "@type": "WebApplication",
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#tuner",
+                        "name": "Tuning",
+                        "description": "Interactive tuner and reference-tone generator with live microphone pitch detection.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#metronome",
+                        "name": "Metronome",
+                        "description": "Interactive metronome and tap-tempo tool.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#pitch-placement",
+                        "name": "Pitch Placement",
+                        "description": "Ear-training exercise for identifying whether a target pitch is flat or sharp.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#pick-target",
+                        "name": "Pick Target",
+                        "description": "Ear-training exercise for identifying a target pitch.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
+                        "@type": ["WebApplication", "LearningResource"],
                         "@id": "https://p.jeltz.org/#app",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
                         "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "softwareVersion": "1.0.0",
+                        "mainEntityOfPage": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        },
                         "about": [
                             {
                                 "@type": "DefinedTerm",
                                 "name": "Musical pitch"
+                            },
+                            {
+                                "@type": "DefinedTerm",
+                                "name": "Metronome"
                             },
                             {
                                 "@type": "DefinedTerm",
@@ -148,11 +239,34 @@
                             "Relative pitch",
                             "Tuning by ear"
                         ],
-                        "educationalUse": "Training",
-                        "audience": {
-                            "@type": "Audience",
-                            "audienceType": "Musicians, music students, music educators, singers, and instrumentalists"
-                        },
+                        "assesses": [
+                            "Pitch discrimination",
+                            "Recognizing flat and sharp intonation",
+                            "Target-pitch identification",
+                            "Intonation accuracy"
+                        ],
+                        "educationalLevel": [
+                            "beginner",
+                            "intermediate",
+                            "advanced"
+                        ],
+                        "educationalUse": "training",
+                        "audience": [
+                            {
+                                "@type": "Audience",
+                                "audienceType": "Musicians, singers, and instrumentalists"
+                            },
+                            {
+                                "@type": "EducationalAudience",
+                                "audienceType": "Music students",
+                                "educationalRole": "student"
+                            },
+                            {
+                                "@type": "EducationalAudience",
+                                "audienceType": "Music educators",
+                                "educationalRole": "teacher"
+                            }
+                        ],
                         "interactivityType": "active",
                         "potentialAction": [
                             {
@@ -168,15 +282,39 @@
                         ],
                         "isAccessibleForFree": true,
                         "operatingSystem": "Any",
+                        "runtimePlatform": "Web browser",
                         "browserRequirements": "Requires a modern web browser with Web Audio API support. Microphone tuning requires MediaDevices support and microphone permission.",
                         "datePublished": "2026-08-25",
-                        "dateModified": "2026-08-25",
+                        "dateModified": "2026-08-27",
+                        "screenshot": [
+                            {
+                                "@type": "ImageObject",
+                                "contentUrl": "https://p.jeltz.org/assets/images/screenshot-tuner.png",
+                                "caption": "Pitch Playground live tuner showing detected pitch and intonation in cents",
+                                "encodingFormat": "image/png",
+                                "datePublished": "2026-08-27",
+                                "dateModified": "2026-08-27",
+                                "representativeOfPage": true
+                            },
+                            {
+                                "@type": "ImageObject",
+                                "contentUrl": "https://p.jeltz.org/assets/images/screenshot-pitch-placement.png",
+                                "caption": "Pitch Playground pitch-placement ear-training exercise for identifying flat and sharp intonation",
+                                "encodingFormat": "image/png",
+                                "datePublished": "2026-08-27",
+                                "dateModified": "2026-08-27",
+                                "representativeOfPage": true
+                            }
+                        ],
                         "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
                         "author": {
                             "@id": "https://p.jeltz.org/#jason-parker"
                         },
                         "maintainer": {
                             "@id": "https://p.jeltz.org/#jason-parker"
+                        },
+                        "publisher": {
+                            "@id": "https://p.jeltz.org/#jeltz"
                         },
                         "copyrightHolder": {
                             "@id": "https://p.jeltz.org/#jason-parker"
@@ -187,7 +325,7 @@
                         },
                         "offers": {
                             "@type": "Offer",
-                            "price": "0",
+                            "price": 0,
                             "priceCurrency": "USD"
                         },
                         "keywords": [
@@ -246,7 +384,7 @@
                         "codeRepository": "https://github.com/qwell/pitch-playground",
                         "programmingLanguage": ["JavaScript", "HTML", "CSS"],
                         "datePublished": "2026-08-25",
-                        "dateModified": "2026-08-25",
+                        "dateModified": "2026-08-27",
                         "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
                         "author": {
                             "@id": "https://p.jeltz.org/#jason-parker"
@@ -272,6 +410,7 @@
                         "url": "https://jeltz.org/",
                         "email": "north@jeltz.org",
                         "logo": "https://jeltz.org/assets/images/logo-dark-192x192.png",
+                        "duns": "06-396-2753",
                         "founder": {
                             "@id": "https://p.jeltz.org/#jason-parker"
                         }
