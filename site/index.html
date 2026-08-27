@@ -6,12 +6,30 @@
         <meta name="language" content="en" />
         <meta http-equiv="content-type" content="text/html" />
         <meta name="robots" content="index,follow" />
-        <meta name="description" content="Musical tuner and ear-trainer" />
-        <link rel="canonical" href="https://p.jeltz.org" />
+        <meta
+            name="description"
+            content="Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises."
+        />
+        <link rel="canonical" href="https://p.jeltz.org/" />
 
         <meta name="fediverse:creator" content="@north@ꩰ.com" />
 
         <meta property="og:site_name" content="Pitch Playground" />
+        <meta
+            property="og:title"
+            content="Pitch Playground - Tuner, Metronome & Ear Training"
+        />
+        <meta
+            property="og:description"
+            content="Free, ad-free tools for musical tuning, rhythm, pitch, and intonation ear training."
+        />
+        <meta
+            property="og:description"
+            content="Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises."
+        />
+        <meta property="og:url" content="https://p.jeltz.org/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:locale" content="en_US" />
         <meta
             property="og:image"
             content="https://p.jeltz.org/logo-light-256x256.png"
@@ -20,11 +38,8 @@
         <meta property="og:image:height" content="256" />
         <meta property="og:image:type" content="image/png" />
         <meta property="og:image:alt" content="Jeltz Logo" />
-        <meta property="og:url" content="https://p.jeltz.org" />
-        <meta property="og:type" content="website" />
-        <meta property="og:locale" content="en_US" />
 
-        <title>Pitch Playground</title>
+        <title>Pitch Playground - Tuner, Metronome & Ear Training</title>
 
         <link rel="stylesheet" href="index.css" />
         <link
@@ -102,7 +117,7 @@
                         "@id": "https://p.jeltz.org/#app",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
-                        "description": "A free, ad-free, open-source browser-based music tuner, metronome, and pitch and ear-training application.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
                         "about": [
                             {
                                 "@type": "DefinedTerm",
@@ -311,12 +326,24 @@
         <nav class="tabs" aria-label="Pitch playground sections">
             <div class="page-width tabs-inner" role="tablist">
                 <button
-                    id="tab-tuning"
+                    id="tab-about"
                     class="tab active"
-                    data-tab="tuning"
+                    data-tab="about"
                     type="button"
                     role="tab"
                     aria-selected="true"
+                    aria-controls="panel-about"
+                >
+                    About
+                </button>
+
+                <button
+                    id="tab-tuning"
+                    class="tab"
+                    data-tab="tuning"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
                     aria-controls="panel-tuning"
                 >
                     Tuning
@@ -364,6 +391,108 @@
         </nav>
 
         <main class="page-width">
+            <!-- About -->
+            <section
+                id="panel-about"
+                class="tab-panel"
+                data-panel="about"
+                role="tabpanel"
+                aria-labelledby="tab-about"
+            >
+                <h2 class="sr-only">About</h2>
+                <h3 class="blurb">
+                    Pitch Playground is a free, ad-free collection of simple
+                    tools for musical tuning, rhythm, pitch, and intonation ear
+                    training.
+                </h3>
+
+                <div class="about-content">
+                    <h4>Tuning and reference pitches</h4>
+                    <p>
+                        Use the tuner to check the pitch of a note with your
+                        microphone, or play reference tones to practice matching
+                        and tuning by ear. The reference pitch is adjustable, so
+                        you are not limited to A440.
+                    </p>
+
+                    <h4>Pitch and intonation ear training</h4>
+                    <p>
+                        Practice hearing small differences in pitch and
+                        recognizing whether a note is sharp or flat. The
+                        exercises are intended to develop pitch discrimination
+                        and a more accurate sense of intonation without
+                        requiring perfect pitch.
+                    </p>
+
+                    <h4>Metronome and rhythm practice</h4>
+                    <p>
+                        Use the metronome for a steady beat while practicing,
+                        choose from common simple, compound, and odd meters, or
+                        tap a tempo to set the BPM by feel.
+                    </p>
+
+                    <h4>Simple by design</h4>
+                    <p>
+                        Pitch Playground is designed to be a small,
+                        straightforward set of music practice tools: open it,
+                        choose a tab, and start practicing. Works well on
+                        desktop and mobile.
+                    </p>
+
+                    <h4>Free forever</h4>
+                    <p>
+                        Pitch Playground will always remain free, ad-free, and
+                        without in-app purchases. To run this site locally,
+                        download and unzip the
+                        <a
+                            href="https://github.com/qwell/pitch-playground/releases/latest"
+                            target="_blank"
+                            rel="noopener"
+                            >latest release</a
+                        >, which can be hosted on a webserver like nginx or by
+                        directly opening index.html.
+                    </p>
+
+                    <h4>Get involved</h4>
+                    <p>
+                        Pitch Playground is created and maintained by
+                        <a
+                            href="https://xn--8r9a.com/@north"
+                            target="_blank"
+                            rel="noopener"
+                            >Jason Parker</a
+                        >
+                        and is open source. If you find a bug or have an idea
+                        for an improvement, please
+                        <a
+                            href="https://github.com/qwell/pitch-playground/issues"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            open an issue on GitHub</a
+                        >.
+                    </p>
+
+                    <p>
+                        If you find Pitch Playground useful, you can help by
+                        <a
+                            href="https://github.com/qwell/pitch-playground"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            starring the project on GitHub</a
+                        >
+                        or
+                        <a
+                            href="https://github.com/sponsors/qwell"
+                            target="_blank"
+                            rel="noopener"
+                            >sponsoring its development</a
+                        >.
+                    </p>
+                </div>
+            </section>
+
             <!-- Tuning -->
             <section
                 id="panel-tuning"
@@ -371,6 +500,7 @@
                 data-panel="tuning"
                 role="tabpanel"
                 aria-labelledby="tab-tuning"
+                hidden
             >
                 <h2 class="sr-only">Tuning</h2>
                 <h3 class="blurb">
