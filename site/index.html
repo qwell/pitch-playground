@@ -1091,6 +1091,28 @@
                             </select>
                         </div>
                     </div>
+
+                    <div class="field">
+                        <label for="placement-adaptive">
+                            Adaptive difficulty
+
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
+                                data-tooltip="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
+                            >ⓘ</span>
+                        </label>
+
+                        <div class="control-row">
+                            <input
+                                id="placement-adaptive"
+                                data-control="placement-adaptive"
+                                type="checkbox"
+                            />
+                            <span>Adjust range automatically</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="practice placement-practice">
@@ -1147,6 +1169,14 @@
                     ></div>
 
                     <dl class="stats practice-stats">
+                        <div class="adaptive-status-row">
+                            <dt>Adaptive</dt>
+                            <dd
+                                data-output="placement-adaptive-status"
+                                aria-live="polite"
+                            ></dd>
+                        </div>
+
                         <div class="stats-streak">
                             <dt>Streak</dt>
 
@@ -1324,6 +1354,28 @@
                             </select>
                         </div>
                     </div>
+
+                    <div class="field">
+                        <label for="pick-adaptive">
+                            Adaptive difficulty
+
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
+                                data-tooltip="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
+                            >ⓘ</span>
+                        </label>
+
+                        <div class="control-row">
+                            <input
+                                id="pick-adaptive"
+                                data-control="pick-adaptive"
+                                type="checkbox"
+                            />
+                            <span>Adjust range automatically</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="practice pick-practice">
@@ -1359,6 +1411,14 @@
                     ></div>
 
                     <dl class="stats practice-stats">
+                        <div class="adaptive-status-row">
+                            <dt>Adaptive</dt>
+                            <dd
+                                data-output="pick-adaptive-status"
+                                aria-live="polite"
+                            ></dd>
+                        </div>
+
                         <div class="stats-streak">
                             <dt>Streak</dt>
 

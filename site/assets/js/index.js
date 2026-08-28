@@ -39,6 +39,9 @@ const METRONOME_METERS = {
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
 const PLACEMENT_ADVANCE_DELAY = 3000;
+const ADAPTIVE_WINDOW_SIZE = 5;
+const ADAPTIVE_NARROW_FACTOR = 0.8;
+const ADAPTIVE_WIDEN_FACTOR = 1.25;
 const DEFAULT_VOLUME = 0.8;
 const VOICE_GAIN = 0.25;
 
@@ -1129,6 +1132,7 @@ const placement = {
     trial: null,
     advanceTimer: null,
     stats: loadPlacementStats(),
+    adaptiveResults: [],
 };
 
 function cancelPlacementAdvance() {
@@ -1252,6 +1256,83 @@ function readRange(minimumInput, maximumInput, defaultMinimum, defaultMaximum) {
         minimum,
         maximum,
     };
+}
+
+function updateAdaptiveDifficulty(exercise, correct) {
+    const enabled = document.querySelector(
+        `[data-control="${exercise}-adaptive"]`
+    ).checked;
+    const state = exercise === 'placement' ? placement : pick;
+    const status = document.querySelector(
+        `[data-output="${exercise}-adaptive-status"]`
+    );
+
+    if (!enabled) {
+        state.adaptiveResults.length = 0;
+        return;
+    }
+
+    state.adaptiveResults.push(correct);
+
+    if (state.adaptiveResults.length < ADAPTIVE_WINDOW_SIZE) {
+        status.textContent =
+            `${state.adaptiveResults.length} of ` +
+            `${ADAPTIVE_WINDOW_SIZE} answers`;
+        return;
+    }
+
+    const correctCount = state.adaptiveResults.filter(Boolean).length;
+    state.adaptiveResults.length = 0;
+
+    let factor = 1;
+    let direction = '';
+
+    if (correctCount >= 4) {
+        factor = ADAPTIVE_NARROW_FACTOR;
+        direction = 'Narrowed';
+    } else if (correctCount <= 2) {
+        factor = ADAPTIVE_WIDEN_FACTOR;
+        direction = 'Widened';
+    }
+
+    if (factor === 1) {
+        status.textContent = `Unchanged ${correctCount}/${ADAPTIVE_WINDOW_SIZE}`;
+        return;
+    }
+
+    const minimumInput = document.querySelector(
+        `[data-control="${exercise}-range-min"]`
+    );
+    const maximumInput = document.querySelector(
+        `[data-control="${exercise}-range-max"]`
+    );
+    const minimum = clamp(
+        Math.round(Number(minimumInput.value) * factor * 10) / 10,
+        Number(minimumInput.min),
+        Number(minimumInput.max)
+    );
+    const maximum = clamp(
+        Math.round(Number(maximumInput.value) * factor * 10) / 10,
+        Number(maximumInput.min),
+        Number(maximumInput.max)
+    );
+
+    writeNumberIfChanged(minimumInput, minimum);
+    writeNumberIfChanged(maximumInput, maximum);
+
+    status.textContent = `${direction} to ${minimum} - ${maximum}¢`;
+}
+
+function resetAdaptiveProgress(exercise) {
+    const state = exercise === 'placement' ? placement : pick;
+    const enabled = document.querySelector(
+        `[data-control="${exercise}-adaptive"]`
+    ).checked;
+
+    state.adaptiveResults.length = 0;
+    document.querySelector(
+        `[data-output="${exercise}-adaptive-status"]`
+    ).textContent = enabled ? `0 of ${ADAPTIVE_WINDOW_SIZE} answers` : '';
 }
 
 function clearPlacementResult() {
@@ -1388,6 +1469,7 @@ function commitPlacement(judgment) {
 
     savePlacementStats();
     renderPlacementStats();
+    updateAdaptiveDifficulty('placement', correct);
 
     const result = document.querySelector('[data-output="placement-result"]');
 
@@ -1414,6 +1496,7 @@ const pick = {
     candidates: [],
     committed: false,
     selectedIndex: null,
+    adaptiveResults: [],
 };
 
 function shuffle(items) {
@@ -1769,6 +1852,7 @@ function commitPick(index) {
 
     renderCandidates();
     renderPickStats();
+    updateAdaptiveDifficulty('pick', selected.isTarget);
 
     const targetIndex = pick.candidates.indexOf(target);
     const status = document.querySelector('[data-output="pick-status"]');
@@ -1847,13 +1931,27 @@ function initializeEvents() {
     for (const control of document.querySelectorAll(
         '[data-control="placement-range-min"], [data-control="placement-range-max"], [data-control="placement-interval"]'
     )) {
-        control.addEventListener('change', newPlacementTrial);
+        control.addEventListener('change', () => {
+            resetAdaptiveProgress('placement');
+            newPlacementTrial();
+        });
     }
 
     for (const control of document.querySelectorAll(
         '[data-control="pick-range-min"], [data-control="pick-range-max"], [data-control="pick-count"]'
     )) {
-        control.addEventListener('change', newPickSet);
+        control.addEventListener('change', () => {
+            resetAdaptiveProgress('pick');
+            newPickSet();
+        });
+    }
+
+    for (const exercise of ['placement', 'pick']) {
+        document
+            .querySelector(`[data-control="${exercise}-adaptive"]`)
+            .addEventListener('change', () => {
+                resetAdaptiveProgress(exercise);
+            });
     }
 
     document
