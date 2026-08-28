@@ -1,0 +1,10 @@
+Contact: mailto:security@jeltz.org
+Canonical: https://p.jeltz.org/.well-known/security.txt
+Preferred-Languages: en
+GPG Key: 822AA0FC5B1CB4BD87F056FC0706ADA69B761DFC
+
+Policy:
+  Be kind, rewind.
+  Optionally encrypt emails using the GPG key above.
+
+Acknowledgements:

@@ -1,4 +1,1 @@
-Sitemap: https://p.jeltz.org/sitemap.xml
-
-User-agent: *
-Allow: /
+.well-known/robots.txt
