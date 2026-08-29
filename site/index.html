@@ -526,6 +526,19 @@
                 >
                     Pick Target
                 </button>
+
+                <button
+                    id="tab-chords"
+                    class="tab"
+                    data-tab="chords"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-chords"
+                    tabindex="-1"
+                >
+                    Chord Quality
+                </button>
             </div>
         </nav>
 
@@ -1101,16 +1114,18 @@
                                 tabindex="0"
                                 aria-label="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
                                 data-tooltip="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
-                            >ⓘ</span>
+                                >ⓘ</span
+                            >
                         </label>
 
                         <div class="control-row">
-                            <input
+                            <select
                                 id="placement-adaptive"
                                 data-control="placement-adaptive"
-                                type="checkbox"
-                            />
-                            <span>Adjust range automatically</span>
+                            >
+                                <option value="off" selected>off</option>
+                                <option value="on">on</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -1138,7 +1153,7 @@
                         </button>
 
                         <button
-                            class="icon-button placement-refresh"
+                            class="icon-button placement-refresh auto-refresh"
                             data-action="new-placement"
                             type="button"
                             aria-label="New trial and play"
@@ -1364,16 +1379,18 @@
                                 tabindex="0"
                                 aria-label="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
                                 data-tooltip="After every five answers, the cents range narrows when four or more are correct and widens when two or fewer are correct."
-                            >ⓘ</span>
+                                >ⓘ</span
+                            >
                         </label>
 
                         <div class="control-row">
-                            <input
+                            <select
                                 id="pick-adaptive"
                                 data-control="pick-adaptive"
-                                type="checkbox"
-                            />
-                            <span>Adjust range automatically</span>
+                            >
+                                <option value="off" selected>off</option>
+                                <option value="on">on</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -1391,7 +1408,7 @@
                         </button>
 
                         <button
-                            class="icon-button"
+                            class="icon-button pick-refresh auto-refresh"
                             data-action="new-pick"
                             type="button"
                             aria-label="New candidate set"
@@ -1438,6 +1455,186 @@
                         <div>
                             <dt>Mean error</dt>
                             <dd data-output="pick-mean-error">0.0 cents</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <!-- Chords -->
+            <section
+                id="panel-chords"
+                class="tab-panel"
+                data-panel="chords"
+                role="tabpanel"
+                aria-labelledby="tab-chords"
+                hidden
+            >
+                <h2 class="sr-only">Chords</h2>
+                <h3 class="blurb">
+                    Hear a triad and identify its chord quality.
+                </h3>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="chord-note">
+                            Root note (<span data-note-frequency="chords"></span
+                            >)
+                        </label>
+
+                        <div class="control-row">
+                            <select
+                                id="chord-note"
+                                class="note-select"
+                                data-note="chords"
+                            ></select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="chord-waveform">Wave type</label>
+
+                        <div class="control-row">
+                            <select
+                                id="chord-waveform"
+                                class="waveform-select"
+                                data-waveform="chords"
+                            >
+                                <option value="sine" selected>sine</option>
+                                <option value="triangle">triangle</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="chord-playback">Playback</label>
+
+                        <div class="control-row">
+                            <select
+                                id="chord-playback"
+                                data-control="chord-playback"
+                            >
+                                <option value="together" selected>
+                                    together
+                                </option>
+                                <option value="ascending">ascending</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label id="chord-qualities-label">Qualities</label>
+
+                        <div class="control-row">
+                            <div
+                                class="quality-toggles"
+                                role="group"
+                                aria-labelledby="chord-qualities-label"
+                            >
+                                <button
+                                    type="button"
+                                    data-chord-quality="major"
+                                    aria-label="Major"
+                                    aria-pressed="true"
+                                    title="Major"
+                                >
+                                    Maj
+                                </button>
+                                <button
+                                    type="button"
+                                    data-chord-quality="minor"
+                                    aria-label="Minor"
+                                    aria-pressed="true"
+                                    title="Minor"
+                                >
+                                    Min
+                                </button>
+                                <button
+                                    type="button"
+                                    data-chord-quality="diminished"
+                                    aria-label="Diminished"
+                                    aria-pressed="true"
+                                    title="Diminished"
+                                >
+                                    Dim
+                                </button>
+                                <button
+                                    type="button"
+                                    data-chord-quality="augmented"
+                                    aria-label="Augmented"
+                                    aria-pressed="true"
+                                    title="Augmented"
+                                >
+                                    Aug
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="practice chord-practice">
+                    <div class="action-button-grid">
+                        <button
+                            class="icon-button"
+                            data-action="play-chord"
+                            type="button"
+                            aria-label="Play chord"
+                            title="Play"
+                        >
+                            <span aria-hidden="true">▶</span>
+                        </button>
+
+                        <button
+                            class="icon-button"
+                            data-action="stop-audio"
+                            type="button"
+                            aria-label="Stop chord"
+                            title="Stop"
+                        >
+                            <span aria-hidden="true">■</span>
+                        </button>
+
+                        <button
+                            class="icon-button chord-refresh auto-refresh"
+                            data-action="new-chord"
+                            type="button"
+                            aria-label="New chord and play"
+                            title="New chord and play"
+                        >
+                            <span aria-hidden="true">↻</span>
+                        </button>
+                    </div>
+
+                    <div
+                        class="chord-answers"
+                        data-chord-answers
+                        role="group"
+                        aria-label="Chord quality"
+                    ></div>
+
+                    <div
+                        class="chord-result"
+                        data-output="chord-result"
+                        aria-live="polite"
+                    ></div>
+
+                    <dl class="stats practice-stats">
+                        <div class="stats-streak">
+                            <dt>Streak</dt>
+                            <dd>
+                                <strong data-output="chord-streak">0</strong>
+                                <button
+                                    class="link-button"
+                                    data-action="clear-chord-stats"
+                                    type="button"
+                                >
+                                    Clear
+                                </button>
+                            </dd>
+                        </div>
+
+                        <div>
+                            <dt>Accuracy</dt>
+                            <dd data-output="chord-accuracy">0%</dd>
                         </div>
                     </dl>
                 </div>

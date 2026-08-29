@@ -311,19 +311,44 @@ main {
     min-width: 0;
 }
 
-.control-row:has(input[type='checkbox']) {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-
-    color: var(--text);
-    font-size: 14px;
-}
-
 .control-row input[type='number'],
 .control-row select {
     width: var(--control-width);
     max-width: 100%;
+}
+
+.quality-toggles {
+    width: var(--control-width);
+    max-width: 100%;
+
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.quality-toggles button {
+    min-width: 0;
+    padding: 0;
+
+    border-radius: 0;
+
+    font-size: 12px;
+}
+
+.quality-toggles button:first-child {
+    border-radius: 4px 0 0 4px;
+}
+
+.quality-toggles button:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.quality-toggles button + button {
+    border-left: 0;
+}
+
+.quality-toggles button[aria-pressed='true'] {
+    background: #3d526e;
+    color: #d9e8ff;
 }
 
 .range-controls {
@@ -470,6 +495,13 @@ main {
         'stats stats';
 }
 
+.chord-practice {
+    grid-template-areas:
+        'actions .'
+        'answers result'
+        'stats stats';
+}
+
 .practice > .action-button-grid {
     grid-area: actions;
 }
@@ -478,6 +510,53 @@ main {
     grid-area: stats;
 
     margin-top: calc(var(--stats-spacing) - var(--practice-row-gap));
+}
+
+.chord-answers {
+    grid-area: answers;
+
+    width: var(--control-width);
+    max-width: 100%;
+
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: var(--button-gap);
+}
+
+.chord-answers button.answer-correct,
+.chord-answers button.answer-target {
+    border-color: #477e52;
+    background: #245d32;
+    color: #8dec9f;
+}
+
+.chord-answers button.answer-wrong {
+    border-color: #8a4a4a;
+    background: #642929;
+    color: #ff9090;
+}
+
+.chord-answers button:disabled[class*='answer-'] {
+    opacity: 1;
+}
+
+.chord-result {
+    grid-area: result;
+
+    min-width: 0;
+
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.chord-result.correct {
+    color: #68d47d;
+}
+
+.chord-result.incorrect {
+    color: #ee7474;
 }
 
 /* Action buttons */
@@ -864,12 +943,12 @@ main {
 
 /* Placement refresh countdown */
 
-.placement-refresh {
+.auto-refresh {
     position: relative;
     overflow: hidden;
 }
 
-.placement-refresh::before {
+.auto-refresh::before {
     content: '';
 
     position: absolute;
@@ -882,12 +961,12 @@ main {
     transform-origin: right center;
 }
 
-.placement-refresh > span {
+.auto-refresh > span {
     position: relative;
     z-index: 1;
 }
 
-.placement-refresh.counting-down::before {
+.auto-refresh.counting-down::before {
     animation: refresh-countdown 3s linear forwards;
 }
 
@@ -1157,6 +1236,7 @@ footer a:hover {
     }
 
     .placement-result,
+    .chord-result,
     .candidate-details {
         white-space: normal;
 

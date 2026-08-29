@@ -38,7 +38,8 @@ const METRONOME_METERS = {
 
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
-const PLACEMENT_ADVANCE_DELAY = 3000;
+const CHORD_STATS_KEY = 'pitchPlayground.chordStats.v1';
+const TRIAL_ADVANCE_DELAY = 3000;
 const ADAPTIVE_WINDOW_SIZE = 5;
 const ADAPTIVE_NARROW_FACTOR = 0.8;
 const ADAPTIVE_WIDEN_FACTOR = 1.25;
@@ -59,6 +60,13 @@ const NOTE_NAMES = [
     'A♯ / B♭',
     'B',
 ];
+
+const CHORD_QUALITIES = {
+    major: [0, 4, 7],
+    minor: [0, 3, 7],
+    diminished: [0, 3, 6],
+    augmented: [0, 4, 8],
+};
 
 function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
@@ -482,6 +490,8 @@ function activateTab(button, focus = false) {
 
     stopAllAudio();
     cancelPlacementAdvance();
+    cancelPickAdvance();
+    cancelChordAdvance();
 
     if (focus) {
         button.focus();
@@ -1162,7 +1172,7 @@ function schedulePlacementAdvance() {
         refreshButton.classList.remove('counting-down');
 
         newPlacementTrial(true);
-    }, PLACEMENT_ADVANCE_DELAY);
+    }, TRIAL_ADVANCE_DELAY);
 }
 
 function renderPlacementStats() {
@@ -1259,9 +1269,9 @@ function readRange(minimumInput, maximumInput, defaultMinimum, defaultMaximum) {
 }
 
 function updateAdaptiveDifficulty(exercise, correct) {
-    const enabled = document.querySelector(
-        `[data-control="${exercise}-adaptive"]`
-    ).checked;
+    const enabled =
+        document.querySelector(`[data-control="${exercise}-adaptive"]`)
+            .value === 'on';
     const state = exercise === 'placement' ? placement : pick;
     const status = document.querySelector(
         `[data-output="${exercise}-adaptive-status"]`
@@ -1325,9 +1335,9 @@ function updateAdaptiveDifficulty(exercise, correct) {
 
 function resetAdaptiveProgress(exercise) {
     const state = exercise === 'placement' ? placement : pick;
-    const enabled = document.querySelector(
-        `[data-control="${exercise}-adaptive"]`
-    ).checked;
+    const enabled =
+        document.querySelector(`[data-control="${exercise}-adaptive"]`)
+            .value === 'on';
 
     state.adaptiveResults.length = 0;
     document.querySelector(
@@ -1497,7 +1507,32 @@ const pick = {
     committed: false,
     selectedIndex: null,
     adaptiveResults: [],
+    advanceTimer: null,
 };
+
+function cancelPickAdvance() {
+    if (pick.advanceTimer !== null) {
+        clearTimeout(pick.advanceTimer);
+        pick.advanceTimer = null;
+    }
+
+    document.querySelector('.pick-refresh').classList.remove('counting-down');
+}
+
+function schedulePickAdvance() {
+    cancelPickAdvance();
+
+    const refreshButton = document.querySelector('.pick-refresh');
+
+    void refreshButton.offsetWidth;
+    refreshButton.classList.add('counting-down');
+
+    pick.advanceTimer = window.setTimeout(() => {
+        pick.advanceTimer = null;
+        refreshButton.classList.remove('counting-down');
+        newPickSet();
+    }, TRIAL_ADVANCE_DELAY);
+}
 
 function shuffle(items) {
     const result = [...items];
@@ -1560,6 +1595,7 @@ function candidateOffsets(count, minimum, maximum) {
 }
 
 function newPickSet() {
+    cancelPickAdvance();
     stopAllAudio();
 
     const targetHz = selectedNoteFrequency(
@@ -1864,6 +1900,237 @@ function commitPick(index) {
         ? `Correct. Candidate ${index + 1} matched the target.`
         : `Incorrect. Candidate ${index + 1} selected; ` +
           `candidate ${targetIndex + 1} was the target.`;
+
+    schedulePickAdvance();
+}
+
+// Chord quality
+
+function defaultChordStats() {
+    return {
+        streak: 0,
+        trials: 0,
+        correct: 0,
+    };
+}
+
+function loadChordStats() {
+    try {
+        const stored = JSON.parse(
+            localStorage.getItem(CHORD_STATS_KEY) || 'null'
+        );
+
+        if (!stored || typeof stored !== 'object') {
+            return defaultChordStats();
+        }
+
+        return {
+            streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+            trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+            correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+        };
+    } catch {
+        return defaultChordStats();
+    }
+}
+
+const chord = {
+    quality: null,
+    committed: false,
+    advanceTimer: null,
+    stats: loadChordStats(),
+};
+
+function cancelChordAdvance() {
+    if (chord.advanceTimer !== null) {
+        clearTimeout(chord.advanceTimer);
+        chord.advanceTimer = null;
+    }
+
+    document.querySelector('.chord-refresh').classList.remove('counting-down');
+}
+
+function scheduleChordAdvance() {
+    cancelChordAdvance();
+
+    const refreshButton = document.querySelector('.chord-refresh');
+
+    void refreshButton.offsetWidth;
+    refreshButton.classList.add('counting-down');
+
+    chord.advanceTimer = window.setTimeout(() => {
+        chord.advanceTimer = null;
+        refreshButton.classList.remove('counting-down');
+        newChordTrial(true);
+    }, TRIAL_ADVANCE_DELAY);
+}
+
+function enabledChordQualities() {
+    return [...document.querySelectorAll('[data-chord-quality]')]
+        .filter((button) => button.getAttribute('aria-pressed') === 'true')
+        .map((button) => button.dataset.chordQuality);
+}
+
+function changeChordQuality(button) {
+    const selected = button.getAttribute('aria-pressed') === 'true';
+
+    button.setAttribute('aria-pressed', String(!selected));
+    newChordTrial();
+}
+
+function renderChordAnswers(selected = null, answersEnabled = false) {
+    const buttons = enabledChordQualities().map((quality) => {
+        const button = document.createElement('button');
+
+        button.type = 'button';
+        button.dataset.chordAnswer = quality;
+        button.textContent = quality[0].toUpperCase() + quality.slice(1);
+        button.disabled = chord.committed || !answersEnabled;
+
+        if (selected !== null) {
+            if (quality === chord.quality) {
+                button.classList.add(
+                    quality === selected ? 'answer-correct' : 'answer-target'
+                );
+            } else if (quality === selected) {
+                button.classList.add('answer-wrong');
+            }
+        }
+
+        return button;
+    });
+
+    document.querySelector('[data-chord-answers]').replaceChildren(...buttons);
+}
+
+function clearChordResult() {
+    const result = document.querySelector('[data-output="chord-result"]');
+
+    result.classList.remove('correct', 'incorrect');
+    result.textContent = '';
+}
+
+function newChordTrial(playImmediately = false) {
+    cancelChordAdvance();
+    stopAllAudio();
+
+    const qualities = enabledChordQualities();
+
+    chord.quality =
+        qualities.length > 0
+            ? qualities[Math.floor(Math.random() * qualities.length)]
+            : null;
+    chord.committed = false;
+
+    clearChordResult();
+    renderChordAnswers();
+
+    if (playImmediately) {
+        playChordTrial();
+    }
+}
+
+function playChordTrial() {
+    if (!chord.quality) {
+        newChordTrial();
+
+        if (!chord.quality) {
+            return;
+        }
+    }
+
+    stopAllAudio();
+
+    const rootHz = selectedNoteFrequency(
+        document.querySelector('[data-note="chords"]')
+    );
+    const waveform = document.querySelector('[data-waveform="chords"]').value;
+    const ascending =
+        document.querySelector('[data-control="chord-playback"]').value ===
+        'ascending';
+
+    CHORD_QUALITIES[chord.quality].forEach((semitones, index) => {
+        audio.playTransient(
+            rootHz * 2 ** (semitones / 12),
+            waveform,
+            ascending ? 0.7 : 1.2,
+            0.55,
+            ascending ? index * 0.35 : 0
+        );
+    });
+
+    if (!chord.committed) {
+        renderChordAnswers(null, true);
+    }
+}
+
+function saveChordStats() {
+    try {
+        localStorage.setItem(CHORD_STATS_KEY, JSON.stringify(chord.stats));
+    } catch {
+        // Storage is optional.
+    }
+}
+
+function renderChordStats() {
+    const accuracy =
+        chord.stats.trials > 0
+            ? (chord.stats.correct / chord.stats.trials) * 100
+            : 0;
+
+    document.querySelector('[data-output="chord-streak"]').textContent = String(
+        chord.stats.streak
+    );
+    document.querySelector('[data-output="chord-accuracy"]').textContent =
+        `${accuracy.toFixed(0)}%`;
+}
+
+function clearChordStats() {
+    chord.stats = defaultChordStats();
+
+    try {
+        localStorage.removeItem(CHORD_STATS_KEY);
+    } catch {
+        // Storage is optional.
+    }
+
+    renderChordStats();
+}
+
+function commitChord(quality) {
+    if (chord.committed || !CHORD_QUALITIES[quality]) {
+        return;
+    }
+
+    audio.stopTransient();
+    chord.committed = true;
+
+    const correct = quality === chord.quality;
+
+    chord.stats.trials += 1;
+    chord.stats.correct += correct ? 1 : 0;
+    chord.stats.streak = correct ? chord.stats.streak + 1 : 0;
+
+    saveChordStats();
+    renderChordStats();
+    renderChordAnswers(quality, true);
+
+    const result = document.querySelector('[data-output="chord-result"]');
+
+    result.classList.add(correct ? 'correct' : 'incorrect');
+
+    const icon = document.createElement('strong');
+
+    icon.textContent = correct ? '✓' : '✕';
+
+    result.replaceChildren(
+        icon,
+        document.createTextNode(
+            ` ${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
+        )
+    );
+
+    scheduleChordAdvance();
 }
 
 // Events
@@ -1926,6 +2193,13 @@ function initializeEvents() {
             updateNoteReadout(event.currentTarget);
 
             newPickSet();
+        });
+
+    document
+        .querySelector('[data-note="chords"]')
+        .addEventListener('change', (event) => {
+            updateNoteReadout(event.currentTarget);
+            newChordTrial();
         });
 
     for (const control of document.querySelectorAll(
@@ -2009,6 +2283,40 @@ function initializeEvents() {
         .querySelector('[data-action="new-pick"]')
         .addEventListener('click', newPickSet);
 
+    document
+        .querySelector('[data-action="play-chord"]')
+        .addEventListener('click', playChordTrial);
+
+    document
+        .querySelector('[data-action="new-chord"]')
+        .addEventListener('click', () => {
+            newChordTrial(true);
+        });
+
+    document
+        .querySelector('[data-chord-answers]')
+        .addEventListener('click', (event) => {
+            const button = event.target.closest('[data-chord-answer]');
+
+            if (button) {
+                commitChord(button.dataset.chordAnswer);
+            }
+        });
+
+    document
+        .querySelector('.quality-toggles')
+        .addEventListener('click', (event) => {
+            const button = event.target.closest('[data-chord-quality]');
+
+            if (button) {
+                changeChordQuality(button);
+            }
+        });
+
+    document
+        .querySelector('[data-control="chord-playback"]')
+        .addEventListener('change', stopGeneratedAudio);
+
     for (const button of document.querySelectorAll('[data-judgment]')) {
         button.addEventListener('click', () => {
             commitPlacement(button.dataset.judgment);
@@ -2021,6 +2329,8 @@ function initializeEvents() {
         button.addEventListener('click', () => {
             stopAllAudio();
             cancelPlacementAdvance();
+            cancelPickAdvance();
+            cancelChordAdvance();
         });
     }
 
@@ -2058,6 +2368,10 @@ function initializeEvents() {
     document
         .querySelector('[data-action="clear-pick-stats"]')
         .addEventListener('click', clearPickStats);
+
+    document
+        .querySelector('[data-action="clear-chord-stats"]')
+        .addEventListener('click', clearChordStats);
 }
 
 // Initialization
@@ -2075,8 +2389,10 @@ function initialize() {
 
     newPlacementTrial();
     newPickSet();
+    newChordTrial();
 
     renderPickStats();
+    renderChordStats();
 
     initializeEvents();
 }
@@ -2086,4 +2402,6 @@ initialize();
 window.addEventListener('beforeunload', () => {
     stopAllAudio();
     cancelPlacementAdvance();
+    cancelPickAdvance();
+    cancelChordAdvance();
 });
