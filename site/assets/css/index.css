@@ -433,7 +433,7 @@ main {
 
     pointer-events: none;
 
-    transform: translateX(-50%);
+    transform: translateX(calc(-50% + var(--tooltip-shift-x, 0px)));
 }
 
 .info-tip:hover::after,

@@ -540,6 +540,38 @@ function initializeTabs() {
     });
 }
 
+function initializeTooltips() {
+    function keepInsideViewport(event) {
+        const tip = event.currentTarget;
+        const style = getComputedStyle(tip, '::after');
+        const tooltipWidth =
+            parseFloat(style.width) +
+            parseFloat(style.paddingLeft) +
+            parseFloat(style.paddingRight) +
+            parseFloat(style.borderLeftWidth) +
+            parseFloat(style.borderRightWidth);
+        const tipBounds = tip.getBoundingClientRect();
+        const center = tipBounds.left + tipBounds.width / 2;
+        const centeredLeft = center - tooltipWidth / 2;
+        const viewportWidth = document.documentElement.clientWidth;
+        const boundedLeft = clamp(
+            centeredLeft,
+            12,
+            Math.max(12, viewportWidth - tooltipWidth - 12)
+        );
+
+        tip.style.setProperty(
+            '--tooltip-shift-x',
+            `${boundedLeft - centeredLeft}px`
+        );
+    }
+
+    for (const tip of document.querySelectorAll('.info-tip')) {
+        tip.addEventListener('pointerenter', keepInsideViewport);
+        tip.addEventListener('focus', keepInsideViewport);
+    }
+}
+
 // Tuning
 
 const tunerMic = {
@@ -2378,6 +2410,7 @@ function initializeEvents() {
 
 function initialize() {
     initializeTabs();
+    initializeTooltips();
     initializeNotes();
 
     updateNoteReadouts();
