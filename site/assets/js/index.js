@@ -471,7 +471,7 @@ function updateNoteReadouts() {
 
 // Tabs
 
-function activateTab(button, focus = false) {
+function activateTab(button, focus = false, updateUrl = true) {
     const tabName = button.dataset.tab;
 
     for (const tab of document.querySelectorAll('.tab')) {
@@ -493,6 +493,10 @@ function activateTab(button, focus = false) {
     cancelPickAdvance();
     cancelChordAdvance();
 
+    if (updateUrl && window.location.hash !== `#${tabName}`) {
+        history.pushState(null, '', `#${tabName}`);
+    }
+
     if (focus) {
         button.focus();
     }
@@ -500,6 +504,17 @@ function activateTab(button, focus = false) {
 
 function initializeTabs() {
     const tabs = [...document.querySelectorAll('.tab')];
+
+    function activateHashTab() {
+        const hash = window.location.hash.slice(1);
+        const tab =
+            tabs.find((candidate) => candidate.dataset.tab === hash) ||
+            (hash === '' ? tabs[0] : null);
+
+        if (tab && !tab.classList.contains('active')) {
+            activateTab(tab, false, false);
+        }
+    }
 
     tabs.forEach((tab, index) => {
         tab.addEventListener('click', () => {
@@ -538,6 +553,11 @@ function initializeTabs() {
             activateTab(tabs[nextIndex], true);
         });
     });
+
+    window.addEventListener('hashchange', activateHashTab);
+    window.addEventListener('popstate', activateHashTab);
+
+    activateHashTab();
 }
 
 function initializeTooltips() {

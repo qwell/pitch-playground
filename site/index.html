@@ -139,6 +139,9 @@
                             },
                             {
                                 "@id": "https://p.jeltz.org/#pick-target"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#chord-quality"
                             }
                         ],
                         "mainEntity": {
@@ -196,11 +199,20 @@
                         }
                     },
                     {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#chord-quality",
+                        "name": "Chord Quality",
+                        "description": "Ear-training exercise for identifying major, minor, diminished, and augmented triad qualities.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
                         "@type": ["WebApplication", "LearningResource"],
                         "@id": "https://p.jeltz.org/#app",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch, intonation, and chord-quality ear-training exercises.",
                         "softwareVersion": "1.0.0",
                         "mainEntityOfPage": {
                             "@id": "https://p.jeltz.org/#webpage"
@@ -225,11 +237,19 @@
                             {
                                 "@type": "DefinedTerm",
                                 "name": "Ear training"
+                            },
+                            {
+                                "@type": "DefinedTerm",
+                                "name": "Musical chords"
+                            },
+                            {
+                                "@type": "DefinedTerm",
+                                "name": "Chord quality"
                             }
                         ],
                         "inLanguage": "en",
                         "applicationCategory": "EducationalApplication",
-                        "applicationSubCategory": "Music tuner, metronome, and pitch and ear training",
+                        "applicationSubCategory": "Music tuner, metronome, pitch training, and chord ear training",
                         "learningResourceType": "Interactive music training application",
                         "teaches": [
                             "Pitch matching",
@@ -237,13 +257,17 @@
                             "Recognizing flat and sharp intonation",
                             "Intonation",
                             "Relative pitch",
-                            "Tuning by ear"
+                            "Tuning by ear",
+                            "Chord-quality recognition",
+                            "Major, minor, diminished, and augmented triad identification"
                         ],
                         "assesses": [
                             "Pitch discrimination",
                             "Recognizing flat and sharp intonation",
                             "Target-pitch identification",
-                            "Intonation accuracy"
+                            "Intonation accuracy",
+                            "Chord-quality recognition",
+                            "Triad identification"
                         ],
                         "educationalLevel": [
                             "beginner",
@@ -341,6 +365,13 @@
                             "pitch placement",
                             "relative pitch",
                             "musical intervals",
+                            "chord ear training",
+                            "chord quality",
+                            "triad identification",
+                            "major chords",
+                            "minor chords",
+                            "diminished chords",
+                            "augmented chords",
                             "cents",
                             "A4 reference pitch",
                             "guitar",
@@ -363,6 +394,7 @@
                             "Metronome",
                             "Flat and sharp pitch-placement ear training",
                             "Target-pitch identification exercises",
+                            "Major, minor, diminished, and augmented chord-quality identification",
                             "Adjustable pitch ranges in cents",
                             "Multiple musical intervals",
                             "Sine and triangle waveforms",
@@ -490,7 +522,7 @@
                 <button
                     id="tab-tuning"
                     class="tab"
-                    data-tab="tuning"
+                    data-tab="tuner"
                     type="button"
                     role="tab"
                     aria-selected="false"
@@ -515,7 +547,7 @@
                 <button
                     id="tab-placement"
                     class="tab"
-                    data-tab="placement"
+                    data-tab="pitch-placement"
                     type="button"
                     role="tab"
                     aria-selected="false"
@@ -528,7 +560,7 @@
                 <button
                     id="tab-pick"
                     class="tab"
-                    data-tab="pick"
+                    data-tab="pick-target"
                     type="button"
                     role="tab"
                     aria-selected="false"
@@ -541,7 +573,7 @@
                 <button
                     id="tab-chords"
                     class="tab"
-                    data-tab="chords"
+                    data-tab="chord-quality"
                     type="button"
                     role="tab"
                     aria-selected="false"
@@ -660,7 +692,7 @@
             <section
                 id="panel-tuning"
                 class="tab-panel"
-                data-panel="tuning"
+                data-panel="tuner"
                 role="tabpanel"
                 aria-labelledby="tab-tuning"
                 hidden
@@ -966,7 +998,7 @@
             <section
                 id="panel-placement"
                 class="tab-panel"
-                data-panel="placement"
+                data-panel="pitch-placement"
                 role="tabpanel"
                 aria-labelledby="tab-placement"
                 hidden
@@ -1240,7 +1272,7 @@
             <section
                 id="panel-pick"
                 class="tab-panel"
-                data-panel="pick"
+                data-panel="pick-target"
                 role="tabpanel"
                 aria-labelledby="tab-pick"
                 hidden
@@ -1475,7 +1507,7 @@
             <section
                 id="panel-chords"
                 class="tab-panel"
-                data-panel="chords"
+                data-panel="chord-quality"
                 role="tabpanel"
                 aria-labelledby="tab-chords"
                 hidden
