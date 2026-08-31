@@ -36,11 +36,11 @@ const METRONOME_METERS = {
     '7/8': [2, 0, 1, 0, 1, 0, 0],
 };
 
-const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
-const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
-const CHORD_STATS_KEY = 'pitchPlayground.chordStats.v1';
-const PITCH_MEMORY_RESULTS_KEY = 'pitchPlayground.pitchMemoryResults.v1';
-const PITCH_MEMORY_TRIAL_KEY = 'pitchPlayground.pitchMemoryTrial.v1';
+const PICK_STATS_KEY = '440Lab.pickStats.v7';
+const PLACEMENT_STATS_KEY = '440Lab.placementStats.v1';
+const CHORD_STATS_KEY = '440Lab.chordStats.v1';
+const PITCH_MEMORY_RESULTS_KEY = '440Lab.pitchMemoryResults.v1';
+const PITCH_MEMORY_TRIAL_KEY = '440Lab.pitchMemoryTrial.v1';
 const PITCH_MEMORY_MIN_HZ = 200;
 const PITCH_MEMORY_MAX_HZ = 900;
 const PITCH_MEMORY_CORRECT_CENTS = 50;
@@ -166,7 +166,22 @@ function getWaveform(name) {
 const storage = {
     load(key, fallback) {
         try {
-            const value = JSON.parse(localStorage.getItem(key) || 'null');
+            let serialized = localStorage.getItem(key);
+
+            if (serialized === null) {
+                const suffix = key.slice(key.indexOf('.'));
+                const previousKey = Object.keys(localStorage).find(
+                    (candidate) =>
+                        candidate !== key && candidate.endsWith(suffix)
+                );
+
+                if (previousKey) {
+                    serialized = localStorage.getItem(previousKey);
+                    localStorage.setItem(key, serialized);
+                }
+            }
+
+            const value = JSON.parse(serialized || 'null');
 
             return value === null ? fallback : value;
         } catch {

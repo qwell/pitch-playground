@@ -30,7 +30,7 @@ jobs:
               run: |
                   git archive \
                   --format=zip \
-                  --output="pitch-playground-${GITHUB_REF_NAME}.zip" \
+                  --output="440-lab-${GITHUB_REF_NAME}.zip" \
                   "HEAD:site"
 
             - name: Create release
@@ -39,5 +39,5 @@ jobs:
               run: |
                   gh release create \
                     "$GITHUB_REF_NAME" \
-                    "pitch-playground-${GITHUB_REF_NAME}.zip" \
+                    "440-lab-${GITHUB_REF_NAME}.zip" \
                     --generate-notes

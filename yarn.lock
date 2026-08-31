@@ -5,6 +5,22 @@ __metadata:
   version: 10
   cacheKey: 10c0
 
+"440-lab@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "440-lab@workspace:."
+  dependencies:
+    "@eslint/css": "npm:^1.4.0"
+    "@eslint/js": "npm:^10.0.1"
+    "@html-eslint/eslint-plugin": "npm:^0.65.0"
+    "@yarnpkg/sdks": "npm:^3.3.1"
+    eslint: "npm:^10.9.1"
+    eslint-config-prettier: "npm:^10.1.8"
+    express: "npm:^5.2.1"
+    globals: "npm:^17.11.0"
+    prettier: "npm:^3.9.6"
+  languageName: unknown
+  linkType: soft
+
 "@arcanis/slice-ansi@npm:^1.1.1":
   version: 1.1.1
   resolution: "@arcanis/slice-ansi@npm:1.1.1"
@@ -503,22 +519,6 @@ __metadata:
   checksum: 10c0/0cbbfa7c446bc0450f5fdc6f892eb4e8ebdc6addce4f4366fdcb6cb63e5e8b33096db80d6c1f27e0277e008f384f2041d6abaae381b31574495c4c3a71e0192b
   languageName: node
   linkType: hard
-
-"Pitch Playground@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "Pitch Playground@workspace:."
-  dependencies:
-    "@eslint/css": "npm:^1.4.0"
-    "@eslint/js": "npm:^10.0.1"
-    "@html-eslint/eslint-plugin": "npm:^0.65.0"
-    "@yarnpkg/sdks": "npm:^3.3.1"
-    eslint: "npm:^10.9.1"
-    eslint-config-prettier: "npm:^10.1.8"
-    express: "npm:^5.2.1"
-    globals: "npm:^17.11.0"
-    prettier: "npm:^3.9.6"
-  languageName: unknown
-  linkType: soft
 
 "accepts@npm:^2.0.0":
   version: 2.0.0

@@ -1,11 +1,11 @@
 {
-    "name": "Pitch Playground",
+    "name": "440-lab",
     "version": "1.1.2",
-    "repository": "git@github.com:qwell/pitch-playground.git",
+    "repository": "git@github.com:qwell/440-lab.git",
     "author": "Jason Parker <north@ntbox.com>",
     "license": "GPL-3.0-or-later",
     "bugs": {
-        "url": "https://github.com/qwell/pitch-playground/issues",
+        "url": "https://github.com/qwell/440-lab/issues",
         "email": "north@ntbox.com"
     },
     "funding": {

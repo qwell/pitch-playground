@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with Pitch Playground
+about: Report a problem with 440 Lab
 title: '[Bug]: '
 labels: bug
 ---

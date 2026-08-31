@@ -1,4 +1,4 @@
-Sitemap: https://p.jeltz.org/sitemap.xml
+Sitemap: https://440lab.com/sitemap.xml
 
 User-agent: *
 Allow: /
