@@ -8,7 +8,7 @@
         <meta name="robots" content="index,follow" />
         <meta
             name="description"
-            content="Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises."
+            content="Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests."
         />
         <link rel="canonical" href="https://p.jeltz.org/" />
 
@@ -21,11 +21,7 @@
         />
         <meta
             property="og:description"
-            content="Free, ad-free tools for musical tuning, rhythm, pitch, and intonation ear training."
-        />
-        <meta
-            property="og:description"
-            content="Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises."
+            content="Free, ad-free tools for musical tuning, rhythm, ear training including chord quality, and pitch-memory testing."
         />
         <meta property="og:url" content="https://p.jeltz.org/" />
         <meta property="og:type" content="website" />
@@ -108,7 +104,7 @@
                         "@id": "https://p.jeltz.org/#website",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
                         "publisher": {
                             "@id": "https://p.jeltz.org/#jeltz"
                         },
@@ -120,7 +116,7 @@
                         "@id": "https://p.jeltz.org/#webpage",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch and intonation ear-training exercises.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
                         "isPartOf": {
                             "@id": "https://p.jeltz.org/#website"
                         },
@@ -142,6 +138,9 @@
                             },
                             {
                                 "@id": "https://p.jeltz.org/#chord-quality"
+                            },
+                            {
+                                "@id": "https://p.jeltz.org/#pitch-memory"
                             }
                         ],
                         "mainEntity": {
@@ -208,11 +207,20 @@
                         }
                     },
                     {
+                        "@type": "WebPageElement",
+                        "@id": "https://p.jeltz.org/#pitch-memory",
+                        "name": "Pitch Memory",
+                        "description": "Tests absolute-frequency memory using generated tones, delayed recall, and interfering tones.",
+                        "isPartOf": {
+                            "@id": "https://p.jeltz.org/#webpage"
+                        }
+                    },
+                    {
                         "@type": ["WebApplication", "LearningResource"],
                         "@id": "https://p.jeltz.org/#app",
                         "url": "https://p.jeltz.org/",
                         "name": "Pitch Playground",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and pitch, intonation, and chord-quality ear-training exercises.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
                         "softwareVersion": "1.0.0",
                         "mainEntityOfPage": {
                             "@id": "https://p.jeltz.org/#webpage"
@@ -245,11 +253,15 @@
                             {
                                 "@type": "DefinedTerm",
                                 "name": "Chord quality"
+                            },
+                            {
+                                "@type": "DefinedTerm",
+                                "name": "Absolute pitch memory"
                             }
                         ],
                         "inLanguage": "en",
                         "applicationCategory": "EducationalApplication",
-                        "applicationSubCategory": "Music tuner, metronome, pitch training, and chord ear training",
+                        "applicationSubCategory": "Music tuner, metronome, pitch training, chord ear training, and pitch-memory testing",
                         "learningResourceType": "Interactive music training application",
                         "teaches": [
                             "Pitch matching",
@@ -259,7 +271,8 @@
                             "Relative pitch",
                             "Tuning by ear",
                             "Chord-quality recognition",
-                            "Major, minor, diminished, and augmented triad identification"
+                            "Major, minor, diminished, and augmented triad identification",
+                            "Absolute-frequency memory"
                         ],
                         "assesses": [
                             "Pitch discrimination",
@@ -267,7 +280,9 @@
                             "Target-pitch identification",
                             "Intonation accuracy",
                             "Chord-quality recognition",
-                            "Triad identification"
+                            "Triad identification",
+                            "Absolute pitch memory",
+                            "Interference-resistant pitch memory"
                         ],
                         "educationalLevel": [
                             "beginner",
@@ -307,7 +322,7 @@
                         "isAccessibleForFree": true,
                         "operatingSystem": "Any",
                         "runtimePlatform": "Web browser",
-                        "browserRequirements": "Requires a modern web browser with Web Audio API support. Microphone tuning requires MediaDevices support and microphone permission.",
+                        "browserRequirements": "Requires a modern web browser with Web Audio API support. Microphone tuning and vocal pitch-memory responses require MediaDevices support and microphone permission.",
                         "datePublished": "2026-08-25",
                         "dateModified": "2026-08-27",
                         "screenshot": [
@@ -372,6 +387,9 @@
                             "minor chords",
                             "diminished chords",
                             "augmented chords",
+                            "absolute pitch memory",
+                            "frequency memory",
+                            "pitch recall",
                             "cents",
                             "A4 reference pitch",
                             "guitar",
@@ -395,6 +413,10 @@
                             "Flat and sharp pitch-placement ear training",
                             "Target-pitch identification exercises",
                             "Major, minor, diminished, and augmented chord-quality identification",
+                            "Generated-tone absolute pitch-memory tests",
+                            "Interference-resistant pitch-memory tests",
+                            "Oscillator and microphone pitch recall",
+                            "Raw trial data CSV export",
                             "Adjustable pitch ranges in cents",
                             "Multiple musical intervals",
                             "Sine and triangle waveforms",
@@ -509,7 +531,7 @@
             <div class="page-width tabs-inner" role="tablist">
                 <button
                     id="tab-about"
-                    class="tab active"
+                    class="tab is-active"
                     data-tab="about"
                     type="button"
                     role="tab"
@@ -545,42 +567,55 @@
                 </button>
 
                 <button
-                    id="tab-placement"
+                    id="tab-pitch-placement"
                     class="tab"
                     data-tab="pitch-placement"
                     type="button"
                     role="tab"
                     aria-selected="false"
-                    aria-controls="panel-placement"
+                    aria-controls="panel-pitch-placement"
                     tabindex="-1"
                 >
                     Pitch Placement
                 </button>
 
                 <button
-                    id="tab-pick"
+                    id="tab-pick-target"
                     class="tab"
                     data-tab="pick-target"
                     type="button"
                     role="tab"
                     aria-selected="false"
-                    aria-controls="panel-pick"
+                    aria-controls="panel-pick-target"
                     tabindex="-1"
                 >
                     Pick Target
                 </button>
 
                 <button
-                    id="tab-chords"
+                    id="tab-chord-quality"
                     class="tab"
                     data-tab="chord-quality"
                     type="button"
                     role="tab"
                     aria-selected="false"
-                    aria-controls="panel-chords"
+                    aria-controls="panel-chord-quality"
                     tabindex="-1"
                 >
                     Chord Quality
+                </button>
+
+                <button
+                    id="tab-pitch-memory"
+                    class="tab"
+                    data-tab="pitch-memory"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-pitch-memory"
+                    tabindex="-1"
+                >
+                    Pitch Memory
                 </button>
             </div>
         </nav>
@@ -652,7 +687,7 @@
                     <p>
                         Pitch Playground is created and maintained by
                         <a
-                            href="https://xn--8r9a.com/@north"
+                            href="https://ꩰ.com/@north"
                             target="_blank"
                             rel="noopener"
                             >Jason Parker</a
@@ -707,7 +742,11 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="tuner-note">
-                            Note (<span data-note-frequency="tuner"></span>)
+                            Note (<span
+                                class="frequency-value note-frequency"
+                                data-note-frequency="tuner"
+                            ></span
+                            >)
                         </label>
 
                         <div class="control-row">
@@ -748,7 +787,7 @@
                     </div>
                 </div>
 
-                <div class="practice tuner-practice">
+                <div class="practice practice-wide tuner-practice">
                     <div class="action-button-grid">
                         <button
                             class="icon-button"
@@ -782,7 +821,7 @@
                         </button>
                     </div>
 
-                    <div class="tuner-meter">
+                    <div class="tuner-meter practice-wide-content">
                         <div class="tuner-header">
                             <strong
                                 class="tuner-note"
@@ -792,7 +831,7 @@
                             </strong>
 
                             <span
-                                class="tuner-target-frequency"
+                                class="frequency-value tuner-target-frequency"
                                 data-output="tuner-target"
                             >
                                 -- Hz
@@ -862,7 +901,7 @@
                             </strong>
 
                             <span
-                                class="tuner-detected-frequency"
+                                class="frequency-value tuner-detected-frequency"
                                 data-output="tuner-detected"
                             >
                                 -- Hz detected
@@ -996,11 +1035,11 @@
 
             <!-- Pitch Placement -->
             <section
-                id="panel-placement"
+                id="panel-pitch-placement"
                 class="tab-panel"
                 data-panel="pitch-placement"
                 role="tabpanel"
-                aria-labelledby="tab-placement"
+                aria-labelledby="tab-pitch-placement"
                 hidden
             >
                 <h2 class="sr-only">Pitch Placement</h2>
@@ -1012,7 +1051,11 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="placement-note">
-                            Note (<span data-note-frequency="placement"></span>)
+                            Note (<span
+                                class="frequency-value note-frequency"
+                                data-note-frequency="placement"
+                            ></span
+                            >)
                         </label>
 
                         <div class="control-row">
@@ -1173,7 +1216,7 @@
                     </div>
                 </div>
 
-                <div class="practice placement-practice">
+                <div class="practice pitch-placement-practice">
                     <div class="action-button-grid">
                         <button
                             class="icon-button"
@@ -1207,21 +1250,31 @@
                     </div>
 
                     <div
-                        class="judgment"
+                        class="placement-judgment"
                         role="group"
                         aria-label="Pitch judgment"
                     >
-                        <button type="button" data-judgment="flat" disabled>
+                        <button
+                            class="answer-option"
+                            type="button"
+                            data-answer="flat"
+                            disabled
+                        >
                             Flat
                         </button>
 
-                        <button type="button" data-judgment="sharp" disabled>
+                        <button
+                            class="answer-option"
+                            type="button"
+                            data-answer="sharp"
+                            disabled
+                        >
                             Sharp
                         </button>
                     </div>
 
                     <div
-                        class="placement-result"
+                        class="practice-result placement-result"
                         data-output="placement-result"
                         aria-live="polite"
                     ></div>
@@ -1235,7 +1288,7 @@
                             ></dd>
                         </div>
 
-                        <div class="stats-streak">
+                        <div class="stats-with-action">
                             <dt>Streak</dt>
 
                             <dd>
@@ -1270,11 +1323,11 @@
 
             <!-- Pick Target -->
             <section
-                id="panel-pick"
+                id="panel-pick-target"
                 class="tab-panel"
                 data-panel="pick-target"
                 role="tabpanel"
-                aria-labelledby="tab-pick"
+                aria-labelledby="tab-pick-target"
                 hidden
             >
                 <h2 class="sr-only">Pick Target</h2>
@@ -1286,7 +1339,11 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="pick-note">
-                            Note (<span data-note-frequency="pick"></span>)
+                            Note (<span
+                                class="frequency-value note-frequency"
+                                data-note-frequency="pick"
+                            ></span
+                            >)
                         </label>
 
                         <div class="control-row">
@@ -1438,7 +1495,7 @@
                     </div>
                 </div>
 
-                <div class="practice pick-practice">
+                <div class="practice pick-target-practice">
                     <div class="action-button-grid">
                         <button
                             class="icon-button"
@@ -1461,7 +1518,7 @@
                         </button>
                     </div>
 
-                    <div class="candidate-list" data-candidates></div>
+                    <div class="pick-target-candidate-list"></div>
 
                     <div
                         class="sr-only"
@@ -1479,7 +1536,7 @@
                             ></dd>
                         </div>
 
-                        <div class="stats-streak">
+                        <div class="stats-with-action">
                             <dt>Streak</dt>
 
                             <dd>
@@ -1505,11 +1562,11 @@
 
             <!-- Chords -->
             <section
-                id="panel-chords"
+                id="panel-chord-quality"
                 class="tab-panel"
                 data-panel="chord-quality"
                 role="tabpanel"
-                aria-labelledby="tab-chords"
+                aria-labelledby="tab-chord-quality"
                 hidden
             >
                 <h2 class="sr-only">Chords</h2>
@@ -1520,7 +1577,10 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="chord-note">
-                            Root note (<span data-note-frequency="chords"></span
+                            Root note (<span
+                                class="frequency-value note-frequency"
+                                data-note-frequency="chords"
+                            ></span
                             >)
 
                             <span
@@ -1656,7 +1716,7 @@
                     </div>
                 </div>
 
-                <div class="practice chord-practice">
+                <div class="practice chord-quality-practice">
                     <div class="action-button-grid">
                         <button
                             class="icon-button"
@@ -1697,13 +1757,13 @@
                     ></div>
 
                     <div
-                        class="chord-result"
+                        class="practice-result chord-result"
                         data-output="chord-result"
                         aria-live="polite"
                     ></div>
 
                     <dl class="stats practice-stats">
-                        <div class="stats-streak">
+                        <div class="stats-with-action">
                             <dt>Streak</dt>
                             <dd>
                                 <strong data-output="chord-streak">0</strong>
@@ -1724,6 +1784,312 @@
                     </dl>
                 </div>
             </section>
+
+            <!-- Pitch Memory -->
+            <section
+                id="panel-pitch-memory"
+                class="tab-panel"
+                data-panel="pitch-memory"
+                role="tabpanel"
+                aria-labelledby="tab-pitch-memory"
+                hidden
+            >
+                <h2 class="sr-only">Pitch Memory</h2>
+                <h3 class="blurb">
+                    Recall an unfamiliar melody's exact opening frequency after
+                    a delay, or recall a target after interfering tones. No note
+                    names or familiar recordings are used.
+                </h3>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="pitch-memory-test">
+                            Test
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="Novel melody tests recall of an unfamiliar melody's opening frequency after a delay. Interference tests recall of a single target after unrelated tones."
+                                data-tooltip="Novel melody tests recall of an unfamiliar melody's opening frequency after a delay. Interference tests recall of a single target after unrelated tones."
+                            >
+                                ⓘ
+                            </span>
+                        </label>
+                        <div class="control-row">
+                            <select
+                                id="pitch-memory-test"
+                                data-control="pitch-memory-test"
+                            >
+                                <option value="novel">novel melody</option>
+                                <option value="interference">
+                                    interference
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="pitch-memory-response">
+                            Response
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="Oscillator lets you adjust a generated tone to match your memory. Microphone measures a pitch you sing, hum, or play."
+                                data-tooltip="Oscillator lets you adjust a generated tone to match your memory. Microphone measures a pitch you sing, hum, or play."
+                            >
+                                ⓘ
+                            </span>
+                        </label>
+                        <div class="control-row">
+                            <select
+                                id="pitch-memory-response"
+                                data-control="pitch-memory-response"
+                            >
+                                <option value="oscillator">oscillator</option>
+                                <option value="microphone">microphone</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field pitch-memory-novel-control">
+                        <label for="pitch-memory-delay">
+                            Recall after
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="Sets the delay after the generated melody finishes. Delayed trials are saved in this browser."
+                                data-tooltip="Sets the delay after the generated melody finishes. Delayed trials are saved in this browser."
+                            >
+                                ⓘ
+                            </span>
+                        </label>
+                        <div class="control-row">
+                            <select
+                                id="pitch-memory-delay"
+                                data-control="pitch-memory-delay"
+                            >
+                                <option value="10">10 seconds</option>
+                                <option value="60">1 minute</option>
+                                <option value="3600">1 hour</option>
+                                <option value="86400">1 day</option>
+                                <option value="604800">1 week</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field pitch-memory-interference-control" hidden>
+                        <label for="pitch-memory-distractors">
+                            Distractors
+                            <span
+                                class="info-tip"
+                                tabindex="0"
+                                aria-label="Sets how many unrelated tones play between the target and your response. More tones create stronger interference."
+                                data-tooltip="Sets how many unrelated tones play between the target and your response. More tones create stronger interference."
+                            >
+                                ⓘ
+                            </span>
+                        </label>
+                        <div class="control-row">
+                            <select
+                                id="pitch-memory-distractors"
+                                data-control="pitch-memory-distractors"
+                            >
+                                <option value="0">0</option>
+                                <option value="11">11</option>
+                                <option value="31" selected>31</option>
+                                <option value="71">71</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="practice practice-wide pitch-memory-practice">
+                    <div class="action-button-grid">
+                        <button
+                            class="icon-button"
+                            data-action="start-pitch-memory"
+                            type="button"
+                            aria-label="Start pitch-memory trial"
+                            title="Start"
+                        >
+                            <span aria-hidden="true">▶</span>
+                        </button>
+                        <button
+                            class="icon-button"
+                            data-action="stop-pitch-memory"
+                            type="button"
+                            aria-label="Stop and cancel pitch-memory trial"
+                            title="Stop"
+                            disabled
+                        >
+                            <span aria-hidden="true">■</span>
+                        </button>
+                        <button
+                            class="icon-button"
+                            data-action="new-pitch-memory"
+                            type="button"
+                            aria-label="New pitch-memory trial and start"
+                            title="New trial and start"
+                        >
+                            <span aria-hidden="true">↻</span>
+                        </button>
+                    </div>
+
+                    <div class="practice-body practice-wide-content">
+                        <p
+                            class="practice-status"
+                            data-output="pitch-memory-status"
+                            aria-live="polite"
+                        >
+                            Ready for a new trial.
+                        </p>
+
+                        <div class="pitch-memory-oscillator-response" hidden>
+                            <label for="pitch-memory-frequency">
+                                Recalled frequency (<span
+                                    class="frequency-value"
+                                    data-output="pitch-memory-response-frequency"
+                                ></span
+                                >)
+                                <span
+                                    class="info-tip"
+                                    tabindex="0"
+                                    aria-label="Adjusts continuously from 200 to 900 Hz without snapping to musical notes. Drag for coarse adjustment or use the arrow keys for 0.1-cent steps."
+                                    data-tooltip="Adjusts continuously from 200 to 900 Hz without snapping to musical notes. Drag for coarse adjustment or use the arrow keys for 0.1-cent steps."
+                                >
+                                    ⓘ
+                                </span>
+                            </label>
+                            <div class="pitch-memory-frequency-scale">
+                                <input
+                                    id="pitch-memory-frequency"
+                                    data-control="pitch-memory-frequency"
+                                    type="range"
+                                    min="0"
+                                    max="2603.9"
+                                    step="0.1"
+                                    value="1302"
+                                />
+                                <span class="pitch-memory-frequency-markers">
+                                    <span
+                                        class="pitch-memory-frequency-marker is-target"
+                                        data-output="pitch-memory-target-marker"
+                                        title="Target frequency"
+                                        hidden
+                                    ></span>
+                                    <span
+                                        class="pitch-memory-frequency-marker is-response"
+                                        data-output="pitch-memory-response-marker"
+                                        title="Your response"
+                                        hidden
+                                    ></span>
+                                </span>
+                            </div>
+                            <div class="response-actions">
+                                <button
+                                    data-action="play-pitch-memory-response"
+                                    type="button"
+                                    title="Play the currently selected response frequency"
+                                >
+                                    Play
+                                </button>
+                                <button
+                                    data-action="stop-pitch-memory-response"
+                                    type="button"
+                                    title="Stop the response tone"
+                                >
+                                    Stop
+                                </button>
+                                <button
+                                    data-action="submit-pitch-memory"
+                                    type="button"
+                                    title="Check your response and reveal the target"
+                                >
+                                    Check
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pitch-memory-microphone-response" hidden>
+                            <div
+                                class="frequency-value pitch-memory-detected-frequency"
+                                data-output="pitch-memory-detected-frequency"
+                            >
+                                No stable pitch
+                            </div>
+                            <div class="response-actions">
+                                <button
+                                    data-action="toggle-pitch-memory-mic"
+                                    type="button"
+                                    aria-pressed="false"
+                                    title="Start or stop microphone pitch detection"
+                                >
+                                    Start microphone
+                                </button>
+                                <button
+                                    data-action="submit-pitch-memory"
+                                    type="button"
+                                    title="Check the detected pitch and reveal the target"
+                                    disabled
+                                >
+                                    Check
+                                </button>
+                            </div>
+                        </div>
+
+                        <div
+                            class="practice-result pitch-memory-result"
+                            data-output="pitch-memory-result"
+                            aria-live="polite"
+                        ></div>
+                    </div>
+
+                    <div class="practice-report practice-wide-content">
+                        <dl class="stats practice-stats">
+                            <div class="stats-with-action">
+                                <dt>
+                                    Streak
+                                    <span
+                                        class="info-tip"
+                                        tabindex="0"
+                                        aria-label="Consecutive responses less than 50 cents from the target. Fifty cents is halfway to an adjacent semitone."
+                                        data-tooltip="Consecutive responses less than 50 cents from the target. Fifty cents is halfway to an adjacent semitone."
+                                    >
+                                        ⓘ
+                                    </span>
+                                </dt>
+                                <dd>
+                                    <strong data-output="pitch-memory-streak"
+                                        >0</strong
+                                    >
+                                    <button
+                                        class="link-button"
+                                        data-action="clear-pitch-memory-stats"
+                                        type="button"
+                                        title="Clear all saved pitch-memory results"
+                                    >
+                                        Clear
+                                    </button>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Mean error</dt>
+                                <dd data-output="pitch-memory-mean-error">
+                                    --
+                                </dd>
+                            </div>
+                        </dl>
+                        <div class="report-actions">
+                            <button
+                                data-action="export-pitch-memory"
+                                type="button"
+                                title="Download raw pitch-memory trials as CSV"
+                            >
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <footer>
@@ -1738,10 +2104,7 @@
 
             <div class="footer-socials">
                 Jason Parker on Mastodon:
-                <a
-                    rel="me noopener"
-                    href="https://xn--8r9a.com/@north"
-                    target="_blank"
+                <a rel="me noopener" href="https://ꩰ.com/@north" target="_blank"
                     >@north@ꩰ.com</a
                 >
             </div>

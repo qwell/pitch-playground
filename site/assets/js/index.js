@@ -39,6 +39,13 @@ const METRONOME_METERS = {
 const PICK_STATS_KEY = 'pitchPlayground.pickStats.v7';
 const PLACEMENT_STATS_KEY = 'pitchPlayground.placementStats.v1';
 const CHORD_STATS_KEY = 'pitchPlayground.chordStats.v1';
+const PITCH_MEMORY_RESULTS_KEY = 'pitchPlayground.pitchMemoryResults.v1';
+const PITCH_MEMORY_TRIAL_KEY = 'pitchPlayground.pitchMemoryTrial.v1';
+const PITCH_MEMORY_MIN_HZ = 200;
+const PITCH_MEMORY_MAX_HZ = 900;
+const PITCH_MEMORY_CORRECT_CENTS = 50;
+const PITCH_MEMORY_RANGE_CENTS =
+    1200 * Math.log2(PITCH_MEMORY_MAX_HZ / PITCH_MEMORY_MIN_HZ);
 const TRIAL_ADVANCE_DELAY = 3000;
 const ADAPTIVE_WINDOW_SIZE = 5;
 const ADAPTIVE_NARROW_FACTOR = 0.8;
@@ -109,10 +116,7 @@ function centsBetween(frequencyHz, referenceHz) {
 }
 
 function getA4() {
-    return readNumber(
-        document.querySelector('[data-control="a4"]'),
-        DEFAULT_A4
-    );
+    return readNumber(getControl('a4'), DEFAULT_A4);
 }
 
 function midiFrequency(midi) {
@@ -129,6 +133,110 @@ function midiToNoteName(midi) {
 
 function selectedNoteFrequency(select) {
     return midiFrequency(Number(select.value));
+}
+
+function getControl(name, root = document) {
+    return root.querySelector(`[data-control="${name}"]`);
+}
+
+function getControls(...names) {
+    return names.map((name) => getControl(name));
+}
+
+function getOutput(name, root = document) {
+    return root.querySelector(`[data-output="${name}"]`);
+}
+
+function getAction(name, root = document) {
+    return root.querySelector(`[data-action="${name}"]`);
+}
+
+function getActions(name, root = document) {
+    return root.querySelectorAll(`[data-action="${name}"]`);
+}
+
+function getNote(name) {
+    return document.querySelector(`[data-note="${name}"]`);
+}
+
+function getWaveform(name) {
+    return document.querySelector(`[data-waveform="${name}"]`);
+}
+
+const storage = {
+    load(key, fallback) {
+        try {
+            const value = JSON.parse(localStorage.getItem(key) || 'null');
+
+            return value === null ? fallback : value;
+        } catch {
+            return fallback;
+        }
+    },
+
+    save(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch {
+            // Storage is optional.
+        }
+    },
+
+    remove(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // Storage is optional.
+        }
+    },
+};
+
+function createAutoAdvance(refreshSelector, advance) {
+    let timer = null;
+
+    function cancel() {
+        if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+        }
+
+        document
+            .querySelector(refreshSelector)
+            .classList.remove('is-counting-down');
+    }
+
+    function schedule() {
+        cancel();
+
+        const refreshButton = document.querySelector(refreshSelector);
+
+        void refreshButton.offsetWidth;
+        refreshButton.classList.add('is-counting-down');
+
+        timer = window.setTimeout(() => {
+            timer = null;
+            refreshButton.classList.remove('is-counting-down');
+            advance();
+        }, TRIAL_ADVANCE_DELAY);
+    }
+
+    return { cancel, schedule };
+}
+
+function clearPracticeResult(outputName) {
+    const result = getOutput(outputName);
+
+    result.classList.remove('is-correct', 'is-incorrect');
+    result.replaceChildren();
+}
+
+function renderPracticeResult(outputName, correct, text) {
+    const result = getOutput(outputName);
+    const icon = document.createElement('strong');
+
+    result.classList.add(correct ? 'is-correct' : 'is-incorrect');
+    icon.textContent = correct ? '✓' : '✕';
+    result.replaceChildren(icon, document.createTextNode(` ${text}`));
 }
 
 // Audio
@@ -383,15 +491,59 @@ const audio = (() => {
     };
 })();
 
+async function startMicrophoneInput(input, fftSize) {
+    if (input.stream) {
+        return false;
+    }
+
+    const requestId = ++input.requestId;
+    const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+    });
+
+    if (requestId !== input.requestId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+    }
+
+    const connection = audio.createAnalyser(stream, fftSize);
+
+    input.stream = stream;
+    input.source = connection.source;
+    input.analyser = connection.analyser;
+    input.sampleRate = connection.sampleRate;
+    input.buffer = new Float32Array(input.analyser.fftSize);
+
+    return true;
+}
+
+function stopMicrophoneInput(input) {
+    input.requestId += 1;
+
+    if (input.source) {
+        input.source.disconnect();
+        input.source = null;
+    }
+
+    if (input.stream) {
+        input.stream.getTracks().forEach((track) => track.stop());
+        input.stream = null;
+    }
+
+    input.analyser = null;
+    input.sampleRate = 0;
+    input.buffer = null;
+}
+
 let masterVolume = DEFAULT_VOLUME;
 
 function updateVolume() {
-    const input = document.querySelector('[data-control="volume"]');
+    const input = getControl('volume');
 
     const volume = clamp(Number(input.value), 0, 1);
 
-    document.querySelector('[data-output="volume-percent"]').textContent =
-        `${Math.round(volume * 100)}%`;
+    getOutput('volume-percent').textContent = `${Math.round(volume * 100)}%`;
 
     audio.setMasterVolume(volume);
 }
@@ -402,8 +554,8 @@ function playTuner() {
     stopGeneratedAudio();
 
     tunerVoice = audio.playContinuous(
-        selectedNoteFrequency(document.querySelector('[data-note="tuner"]')),
-        document.querySelector('[data-waveform="tuner"]').value
+        selectedNoteFrequency(getNote('tuner')),
+        getWaveform('tuner').value
     );
 }
 
@@ -425,6 +577,7 @@ function stopGeneratedAudio() {
 function stopAllAudio() {
     stopGeneratedAudio();
     stopMicTuner();
+    stopPitchMemoryMic();
 }
 
 // Notes
@@ -474,10 +627,19 @@ function updateNoteReadouts() {
 function activateTab(button, focus = false, updateUrl = true) {
     const tabName = button.dataset.tab;
 
+    if (
+        tabName !== 'pitch-memory' &&
+        pitchMemory.trial?.state === 'waiting' &&
+        (pitchMemory.trial.test === 'interference' ||
+            Date.now() < pitchMemory.trial.encodingEndsAt)
+    ) {
+        cancelPitchMemoryTrial();
+    }
+
     for (const tab of document.querySelectorAll('.tab')) {
         const active = tab === button;
 
-        tab.classList.toggle('active', active);
+        tab.classList.toggle('is-active', active);
 
         tab.setAttribute('aria-selected', String(active));
 
@@ -511,7 +673,7 @@ function initializeTabs() {
             tabs.find((candidate) => candidate.dataset.tab === hash) ||
             (hash === '' ? tabs[0] : null);
 
-        if (tab && !tab.classList.contains('active')) {
+        if (tab && !tab.classList.contains('is-active')) {
             activateTab(tab, false, false);
         }
     }
@@ -617,13 +779,13 @@ const tunerMic = {
 };
 
 function setTunerStatus(text) {
-    document.querySelector('[data-output="tuner-status"]').textContent = text;
+    getOutput('tuner-status').textContent = text;
 }
 
 function setTunerMicButtonActive(active) {
-    const button = document.querySelector('[data-action="toggle-tuner-mic"]');
+    const button = getAction('toggle-tuner-mic');
 
-    button.classList.toggle('active', active);
+    button.classList.toggle('is-active', active);
 
     button.setAttribute('aria-pressed', String(active));
 
@@ -646,50 +808,28 @@ function resetTunerTracking(resetPending) {
 }
 
 function resetTunerDetection(status = 'Microphone off') {
-    document.querySelector('[data-output="tuner-closest"]').textContent = '--';
+    getOutput('tuner-closest').textContent = '--';
 
-    document.querySelector('[data-output="tuner-target"]').textContent =
-        '-- Hz';
+    getOutput('tuner-target').textContent = '-- Hz';
 
-    document.querySelector('[data-output="tuner-detected"]').textContent =
-        '-- Hz detected';
+    getOutput('tuner-detected').textContent = '-- Hz detected';
 
-    document.querySelector('[data-output="tuner-cents"]').textContent = '--';
+    getOutput('tuner-cents').textContent = '--';
 
-    const needle = document.querySelector('[data-output="tuner-needle"]');
-    needle.classList.remove('visible', 'in-tune');
+    const needle = getOutput('tuner-needle');
+    needle.classList.remove('is-visible', 'is-in-tune');
 
     setTunerStatus(status);
 }
 
 function stopMicTuner() {
-    tunerMic.requestId += 1;
-
     if (tunerMic.frame !== null) {
         cancelAnimationFrame(tunerMic.frame);
 
         tunerMic.frame = null;
     }
 
-    if (tunerMic.source) {
-        tunerMic.source.disconnect();
-
-        tunerMic.source = null;
-    }
-
-    if (tunerMic.stream) {
-        for (const track of tunerMic.stream.getTracks()) {
-            track.stop();
-        }
-
-        tunerMic.stream = null;
-    }
-
-    tunerMic.analyser = null;
-
-    tunerMic.sampleRate = 0;
-
-    tunerMic.buffer = null;
+    stopMicrophoneInput(tunerMic);
 
     tunerMic.lastAnalysisTime = 0;
 
@@ -872,24 +1012,21 @@ function renderTunerDetection(frequencyHz) {
 
     const percent = limitedCents + 50;
 
-    document.querySelector('[data-output="tuner-closest"]').textContent =
-        nearest.name;
+    getOutput('tuner-closest').textContent = nearest.name;
 
-    document.querySelector('[data-output="tuner-target"]').textContent =
-        `${nearest.targetHz.toFixed(3)} Hz`;
+    getOutput('tuner-target').textContent = `${nearest.targetHz.toFixed(3)} Hz`;
 
-    document.querySelector('[data-output="tuner-detected"]').textContent =
+    getOutput('tuner-detected').textContent =
         `${frequencyHz.toFixed(3)} Hz detected`;
 
-    document.querySelector('[data-output="tuner-cents"]').textContent =
-        `${signed(cents, 1)} cents`;
+    getOutput('tuner-cents').textContent = `${signed(cents, 1)} cents`;
 
     const inTune = Math.abs(cents) <= 3;
 
-    const needle = document.querySelector('[data-output="tuner-needle"]');
+    const needle = getOutput('tuner-needle');
     needle.style.left = `${percent}%`;
-    needle.classList.add('visible');
-    needle.classList.toggle('in-tune', inTune);
+    needle.classList.add('is-visible');
+    needle.classList.toggle('is-in-tune', inTune);
 }
 
 function analyzeTunerMic(time) {
@@ -956,35 +1093,12 @@ async function startMicTuner() {
         return;
     }
 
-    const requestId = ++tunerMic.requestId;
-
     resetTunerDetection('Requesting microphone access...');
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-        });
-
-        if (requestId !== tunerMic.requestId) {
-            for (const track of stream.getTracks()) {
-                track.stop();
-            }
-
+        if (!(await startMicrophoneInput(tunerMic, 2048))) {
             return;
         }
-
-        const connection = audio.createAnalyser(stream, 2048);
-
-        tunerMic.stream = stream;
-
-        tunerMic.source = connection.source;
-
-        tunerMic.analyser = connection.analyser;
-
-        tunerMic.sampleRate = connection.sampleRate;
-
-        tunerMic.buffer = new Float32Array(tunerMic.analyser.fftSize);
 
         tunerMic.lastAnalysisTime = 0;
 
@@ -1034,14 +1148,9 @@ function scheduleMetronome() {
         return;
     }
 
-    const bpm = readNumber(
-        document.querySelector('[data-control="metronome-bpm"]'),
-        100
-    );
+    const bpm = readNumber(getControl('metronome-bpm'), 100);
 
-    const signature = document.querySelector(
-        '[data-control="metronome-time-signature"]'
-    ).value;
+    const signature = getControl('metronome-time-signature').value;
 
     const pattern = METRONOME_METERS[signature] || METRONOME_METERS['4/4'];
 
@@ -1134,7 +1243,7 @@ function tapTempo() {
         intervals.reduce((total, interval) => total + interval, 0) /
         intervals.length;
 
-    const bpmInput = document.querySelector('[data-control="metronome-bpm"]');
+    const bpmInput = getControl('metronome-bpm');
 
     const bpm = clamp(
         Math.round(60000 / averageInterval),
@@ -1157,74 +1266,40 @@ function defaultPlacementStats() {
 }
 
 function loadPlacementStats() {
-    try {
-        const stored = JSON.parse(
-            localStorage.getItem(PLACEMENT_STATS_KEY) || 'null'
-        );
+    const stored = storage.load(PLACEMENT_STATS_KEY, null);
 
-        if (!stored || typeof stored !== 'object') {
-            return defaultPlacementStats();
-        }
-
-        return {
-            streak: Number.isFinite(stored.streak) ? stored.streak : 0,
-            trials: Number.isFinite(stored.trials) ? stored.trials : 0,
-            errorTotal: Number.isFinite(stored.errorTotal)
-                ? stored.errorTotal
-                : 0,
-            best: Number.isFinite(stored.best) ? stored.best : null,
-        };
-    } catch {
+    if (!stored || typeof stored !== 'object') {
         return defaultPlacementStats();
     }
+
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        errorTotal: Number.isFinite(stored.errorTotal) ? stored.errorTotal : 0,
+        best: Number.isFinite(stored.best) ? stored.best : null,
+    };
 }
 
 function savePlacementStats() {
-    try {
-        localStorage.setItem(
-            PLACEMENT_STATS_KEY,
-            JSON.stringify(placement.stats)
-        );
-    } catch {
-        // Storage is optional.
-    }
+    storage.save(PLACEMENT_STATS_KEY, placement.stats);
 }
 
 const placement = {
     trial: null,
-    advanceTimer: null,
     stats: loadPlacementStats(),
     adaptiveResults: [],
 };
 
+const placementAdvance = createAutoAdvance('.placement-refresh', () => {
+    newPlacementTrial(true);
+});
+
 function cancelPlacementAdvance() {
-    if (placement.advanceTimer !== null) {
-        clearTimeout(placement.advanceTimer);
-
-        placement.advanceTimer = null;
-    }
-
-    document
-        .querySelector('.placement-refresh')
-        .classList.remove('counting-down');
+    placementAdvance.cancel();
 }
 
 function schedulePlacementAdvance() {
-    cancelPlacementAdvance();
-
-    const refreshButton = document.querySelector('.placement-refresh');
-
-    void refreshButton.offsetWidth;
-
-    refreshButton.classList.add('counting-down');
-
-    placement.advanceTimer = window.setTimeout(() => {
-        placement.advanceTimer = null;
-
-        refreshButton.classList.remove('counting-down');
-
-        newPlacementTrial(true);
-    }, TRIAL_ADVANCE_DELAY);
+    placementAdvance.schedule();
 }
 
 function renderPlacementStats() {
@@ -1232,56 +1307,49 @@ function renderPlacementStats() {
 
     const meanError = trials > 0 ? errorTotal / trials : 0;
 
-    document.querySelector('[data-output="placement-streak"]').textContent =
-        String(streak);
+    getOutput('placement-streak').textContent = String(streak);
 
-    document.querySelector('[data-output="placement-mean-error"]').textContent =
+    getOutput('placement-mean-error').textContent =
         `${meanError.toFixed(1)} cents`;
 
-    document.querySelector('[data-output="placement-best"]').textContent =
+    getOutput('placement-best').textContent =
         best === null ? '--' : `${best.toFixed(2)} cents`;
 }
 
 function clearPlacementStats() {
     placement.stats = defaultPlacementStats();
 
-    try {
-        localStorage.removeItem(PLACEMENT_STATS_KEY);
-    } catch {
-        // Storage is optional.
-    }
+    storage.remove(PLACEMENT_STATS_KEY);
 
     renderPlacementStats();
 }
 
 function setJudgmentState({ disabled, selected = null, correct = null }) {
-    for (const button of document.querySelectorAll('[data-judgment]')) {
+    for (const button of document.querySelectorAll(
+        '.placement-judgment .answer-option'
+    )) {
         button.disabled = disabled;
 
-        button.classList.remove(
-            'answer-correct',
-            'answer-wrong',
-            'answer-target'
-        );
+        button.classList.remove('is-correct', 'is-incorrect', 'is-target');
 
         if (selected === null) {
             continue;
         }
 
-        const judgment = button.dataset.judgment;
+        const judgment = button.dataset.answer;
 
         if (selected === correct && judgment === selected) {
-            button.classList.add('answer-correct');
+            button.classList.add('is-correct');
 
             continue;
         }
 
         if (judgment === selected) {
-            button.classList.add('answer-wrong');
+            button.classList.add('is-incorrect');
         }
 
         if (selected !== correct && judgment === correct) {
-            button.classList.add('answer-target');
+            button.classList.add('is-target');
         }
     }
 }
@@ -1321,13 +1389,9 @@ function readRange(minimumInput, maximumInput, defaultMinimum, defaultMaximum) {
 }
 
 function updateAdaptiveDifficulty(exercise, correct) {
-    const enabled =
-        document.querySelector(`[data-control="${exercise}-adaptive"]`)
-            .value === 'on';
+    const enabled = getControl(`${exercise}-adaptive`).value === 'on';
     const state = exercise === 'placement' ? placement : pick;
-    const status = document.querySelector(
-        `[data-output="${exercise}-adaptive-status"]`
-    );
+    const status = getOutput(`${exercise}-adaptive-status`);
 
     if (!enabled) {
         state.adaptiveResults.length = 0;
@@ -1362,12 +1426,8 @@ function updateAdaptiveDifficulty(exercise, correct) {
         return;
     }
 
-    const minimumInput = document.querySelector(
-        `[data-control="${exercise}-range-min"]`
-    );
-    const maximumInput = document.querySelector(
-        `[data-control="${exercise}-range-max"]`
-    );
+    const minimumInput = getControl(`${exercise}-range-min`);
+    const maximumInput = getControl(`${exercise}-range-max`);
     const minimum = clamp(
         Math.round(Number(minimumInput.value) * factor * 10) / 10,
         Number(minimumInput.min),
@@ -1387,36 +1447,26 @@ function updateAdaptiveDifficulty(exercise, correct) {
 
 function resetAdaptiveProgress(exercise) {
     const state = exercise === 'placement' ? placement : pick;
-    const enabled =
-        document.querySelector(`[data-control="${exercise}-adaptive"]`)
-            .value === 'on';
+    const enabled = getControl(`${exercise}-adaptive`).value === 'on';
 
     state.adaptiveResults.length = 0;
-    document.querySelector(
-        `[data-output="${exercise}-adaptive-status"]`
-    ).textContent = enabled ? `0 of ${ADAPTIVE_WINDOW_SIZE} answers` : '';
+    getOutput(`${exercise}-adaptive-status`).textContent = enabled
+        ? `0 of ${ADAPTIVE_WINDOW_SIZE} answers`
+        : '';
 }
 
 function clearPlacementResult() {
-    const result = document.querySelector('[data-output="placement-result"]');
-
-    result.classList.remove('correct', 'incorrect');
-
-    result.replaceChildren();
+    clearPracticeResult('placement-result');
 }
 
 function createPlacementTrial() {
-    const rootHz = selectedNoteFrequency(
-        document.querySelector('[data-note="placement"]')
-    );
+    const rootHz = selectedNoteFrequency(getNote('placement'));
 
-    const semitones = Number(
-        document.querySelector('[data-control="placement-interval"]').value
-    );
+    const semitones = Number(getControl('placement-interval').value);
 
     const { minimum: minimumCents, maximum: maximumCents } = readRange(
-        document.querySelector('[data-control="placement-range-min"]'),
-        document.querySelector('[data-control="placement-range-max"]'),
+        getControl('placement-range-min'),
+        getControl('placement-range-max'),
         10,
         50
     );
@@ -1470,14 +1520,9 @@ function playPlacementTrial() {
 
     const { rootHz, correctTargetHz, mistuneCents } = placement.trial;
 
-    const waveform = document.querySelector(
-        '[data-waveform="placement"]'
-    ).value;
+    const waveform = getWaveform('placement').value;
 
-    const duration = readNumber(
-        document.querySelector('[data-control="placement-duration"]'),
-        1
-    );
+    const duration = readNumber(getControl('placement-duration'), 1);
 
     const targetHz = frequencyFromCents(correctTargetHz, mistuneCents);
 
@@ -1533,21 +1578,13 @@ function commitPlacement(judgment) {
     renderPlacementStats();
     updateAdaptiveDifficulty('placement', correct);
 
-    const result = document.querySelector('[data-output="placement-result"]');
-
-    result.classList.add(correct ? 'correct' : 'incorrect');
-
-    const icon = document.createElement('strong');
-
-    icon.textContent = correct ? '✓' : '✕';
-
-    const text = document.createTextNode(
-        ` ${direction} · ` +
+    renderPracticeResult(
+        'placement-result',
+        correct,
+        `${direction} · ` +
             `${signed(trial.mistuneCents, 2)} cents ` +
             `(${signed(errorHz, 3)} Hz)`
     );
-
-    result.replaceChildren(icon, text);
 
     schedulePlacementAdvance();
 }
@@ -1559,31 +1596,16 @@ const pick = {
     committed: false,
     selectedIndex: null,
     adaptiveResults: [],
-    advanceTimer: null,
 };
 
-function cancelPickAdvance() {
-    if (pick.advanceTimer !== null) {
-        clearTimeout(pick.advanceTimer);
-        pick.advanceTimer = null;
-    }
+const pickAdvance = createAutoAdvance('.pick-refresh', newPickSet);
 
-    document.querySelector('.pick-refresh').classList.remove('counting-down');
+function cancelPickAdvance() {
+    pickAdvance.cancel();
 }
 
 function schedulePickAdvance() {
-    cancelPickAdvance();
-
-    const refreshButton = document.querySelector('.pick-refresh');
-
-    void refreshButton.offsetWidth;
-    refreshButton.classList.add('counting-down');
-
-    pick.advanceTimer = window.setTimeout(() => {
-        pick.advanceTimer = null;
-        refreshButton.classList.remove('counting-down');
-        newPickSet();
-    }, TRIAL_ADVANCE_DELAY);
+    pickAdvance.schedule();
 }
 
 function shuffle(items) {
@@ -1650,20 +1672,16 @@ function newPickSet() {
     cancelPickAdvance();
     stopAllAudio();
 
-    const targetHz = selectedNoteFrequency(
-        document.querySelector('[data-note="pick"]')
-    );
+    const targetHz = selectedNoteFrequency(getNote('pick'));
 
     const { minimum: minimumCents, maximum: maximumCents } = readRange(
-        document.querySelector('[data-control="pick-range-min"]'),
-        document.querySelector('[data-control="pick-range-max"]'),
+        getControl('pick-range-min'),
+        getControl('pick-range-max'),
         10,
         50
     );
 
-    const count = Math.round(
-        readNumber(document.querySelector('[data-control="pick-count"]'), 7)
-    );
+    const count = Math.round(readNumber(getControl('pick-count'), 7));
 
     pick.candidates = shuffle(
         candidateOffsets(count, minimumCents, maximumCents).map((cents) => ({
@@ -1680,7 +1698,7 @@ function newPickSet() {
     pick.committed = false;
     pick.selectedIndex = null;
 
-    document.querySelector('[data-output="pick-status"]').textContent = '';
+    getOutput('pick-status').textContent = '';
 
     renderCandidates();
 }
@@ -1693,21 +1711,21 @@ function getCandidateResult(candidate, index) {
     if (candidate.isTarget && index === pick.selectedIndex) {
         return {
             icon: '✓',
-            className: 'pick-correct',
+            className: 'is-correct',
         };
     }
 
     if (index === pick.selectedIndex) {
         return {
             icon: '✕',
-            className: 'pick-wrong',
+            className: 'is-incorrect',
         };
     }
 
     if (candidate.isTarget) {
         return {
             icon: '◎',
-            className: 'pick-target',
+            className: 'is-target',
         };
     }
 
@@ -1720,19 +1738,19 @@ function getCandidateResult(candidate, index) {
 function createCandidateRow(candidate, index) {
     const row = document.createElement('div');
 
-    row.className = 'candidate-row';
+    row.className = 'pick-target-candidate-row';
 
     row.dataset.index = String(index);
 
     const actions = document.createElement('div');
 
-    actions.className = 'candidate-actions';
+    actions.className = 'pick-target-candidate-actions';
 
     const playButton = document.createElement('button');
 
     playButton.type = 'button';
 
-    playButton.className = 'icon-button candidate-play';
+    playButton.className = 'icon-button pick-target-candidate-play';
 
     playButton.dataset.action = 'play-candidate';
 
@@ -1746,7 +1764,7 @@ function createCandidateRow(candidate, index) {
 
     chooseButton.type = 'button';
 
-    chooseButton.className = 'choose-button';
+    chooseButton.className = 'pick-target-candidate-choose';
 
     chooseButton.dataset.action = 'choose-candidate';
 
@@ -1770,12 +1788,12 @@ function createCandidateRow(candidate, index) {
 
     const details = document.createElement('span');
 
-    details.className = 'candidate-details';
+    details.className = 'pick-target-candidate-details';
 
     if (result.icon) {
         const icon = document.createElement('span');
 
-        icon.className = 'candidate-result-icon';
+        icon.className = 'pick-target-candidate-result-icon';
 
         icon.textContent = result.icon;
 
@@ -1797,7 +1815,9 @@ function createCandidateRow(candidate, index) {
 function renderCandidates() {
     const rows = pick.candidates.map(createCandidateRow);
 
-    document.querySelector('[data-candidates]').replaceChildren(...rows);
+    document
+        .querySelector('.pick-target-candidate-list')
+        .replaceChildren(...rows);
 }
 
 function playCandidate(index) {
@@ -1814,18 +1834,20 @@ function playCandidate(index) {
     audio.playTransient(
         candidate.frequencyHz,
 
-        document.querySelector('[data-waveform="pick"]').value,
+        getWaveform('pick').value,
 
-        readNumber(document.querySelector('[data-control="pick-duration"]'), 1)
+        readNumber(getControl('pick-duration'), 1)
     );
 
     if (pick.committed) {
         return;
     }
 
-    const row = document.querySelector(`.candidate-row[data-index="${index}"]`);
+    const row = document.querySelector(
+        `.pick-target-candidate-row[data-index="${index}"]`
+    );
 
-    const chooseButton = row?.querySelector('[data-action="choose-candidate"]');
+    const chooseButton = row ? getAction('choose-candidate', row) : null;
 
     if (chooseButton) {
         chooseButton.disabled = false;
@@ -1839,13 +1861,9 @@ function loadPickStats() {
         return pickStatsCache;
     }
 
-    try {
-        const stats = JSON.parse(localStorage.getItem(PICK_STATS_KEY) || '[]');
+    const stats = storage.load(PICK_STATS_KEY, []);
 
-        pickStatsCache = Array.isArray(stats) ? stats : [];
-    } catch {
-        pickStatsCache = [];
-    }
+    pickStatsCache = Array.isArray(stats) ? stats : [];
 
     return pickStatsCache;
 }
@@ -1856,9 +1874,7 @@ function savePickStat(errorCents) {
     stats.push({
         dateTime: new Date().toISOString(),
 
-        targetHz: selectedNoteFrequency(
-            document.querySelector('[data-note="pick"]')
-        ),
+        targetHz: selectedNoteFrequency(getNote('pick')),
 
         errorCents,
     });
@@ -1867,21 +1883,13 @@ function savePickStat(errorCents) {
         stats.splice(0, stats.length - 500);
     }
 
-    try {
-        localStorage.setItem(PICK_STATS_KEY, JSON.stringify(stats));
-    } catch {
-        // Persistence is optional; keep the exercise usable without storage.
-    }
+    storage.save(PICK_STATS_KEY, stats);
 }
 
 function clearPickStats() {
     loadPickStats().length = 0;
 
-    try {
-        localStorage.removeItem(PICK_STATS_KEY);
-    } catch {
-        // Persistence is optional; still refresh the visible stats.
-    }
+    storage.remove(PICK_STATS_KEY);
 
     renderPickStats();
 }
@@ -1910,12 +1918,9 @@ function renderPickStats() {
 
     const meanError = stats.length > 0 ? errorTotal / stats.length : 0;
 
-    document.querySelector('[data-output="pick-streak"]').textContent = String(
-        currentPickStreak(stats)
-    );
+    getOutput('pick-streak').textContent = String(currentPickStreak(stats));
 
-    document.querySelector('[data-output="pick-mean-error"]').textContent =
-        `${meanError.toFixed(1)} cents`;
+    getOutput('pick-mean-error').textContent = `${meanError.toFixed(1)} cents`;
 }
 
 function commitPick(index) {
@@ -1943,8 +1948,8 @@ function commitPick(index) {
     updateAdaptiveDifficulty('pick', selected.isTarget);
 
     const targetIndex = pick.candidates.indexOf(target);
-    const status = document.querySelector('[data-output="pick-status"]');
-    const newPickButton = document.querySelector('[data-action="new-pick"]');
+    const status = getOutput('pick-status');
+    const newPickButton = getAction('new-pick');
 
     newPickButton?.focus();
 
@@ -1967,54 +1972,35 @@ function defaultChordStats() {
 }
 
 function loadChordStats() {
-    try {
-        const stored = JSON.parse(
-            localStorage.getItem(CHORD_STATS_KEY) || 'null'
-        );
+    const stored = storage.load(CHORD_STATS_KEY, null);
 
-        if (!stored || typeof stored !== 'object') {
-            return defaultChordStats();
-        }
-
-        return {
-            streak: Number.isFinite(stored.streak) ? stored.streak : 0,
-            trials: Number.isFinite(stored.trials) ? stored.trials : 0,
-            correct: Number.isFinite(stored.correct) ? stored.correct : 0,
-        };
-    } catch {
+    if (!stored || typeof stored !== 'object') {
         return defaultChordStats();
     }
+
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+    };
 }
 
 const chord = {
     quality: null,
     committed: false,
-    advanceTimer: null,
     stats: loadChordStats(),
 };
 
-function cancelChordAdvance() {
-    if (chord.advanceTimer !== null) {
-        clearTimeout(chord.advanceTimer);
-        chord.advanceTimer = null;
-    }
+const chordAdvance = createAutoAdvance('.chord-refresh', () => {
+    newChordTrial(true);
+});
 
-    document.querySelector('.chord-refresh').classList.remove('counting-down');
+function cancelChordAdvance() {
+    chordAdvance.cancel();
 }
 
 function scheduleChordAdvance() {
-    cancelChordAdvance();
-
-    const refreshButton = document.querySelector('.chord-refresh');
-
-    void refreshButton.offsetWidth;
-    refreshButton.classList.add('counting-down');
-
-    chord.advanceTimer = window.setTimeout(() => {
-        chord.advanceTimer = null;
-        refreshButton.classList.remove('counting-down');
-        newChordTrial(true);
-    }, TRIAL_ADVANCE_DELAY);
+    chordAdvance.schedule();
 }
 
 function enabledChordQualities() {
@@ -2035,6 +2021,7 @@ function renderChordAnswers(selected = null, answersEnabled = false) {
         const button = document.createElement('button');
 
         button.type = 'button';
+        button.className = 'answer-option';
         button.dataset.chordAnswer = quality;
         button.textContent = quality[0].toUpperCase() + quality.slice(1);
         button.disabled = chord.committed || !answersEnabled;
@@ -2042,10 +2029,10 @@ function renderChordAnswers(selected = null, answersEnabled = false) {
         if (selected !== null) {
             if (quality === chord.quality) {
                 button.classList.add(
-                    quality === selected ? 'answer-correct' : 'answer-target'
+                    quality === selected ? 'is-correct' : 'is-target'
                 );
             } else if (quality === selected) {
-                button.classList.add('answer-wrong');
+                button.classList.add('is-incorrect');
             }
         }
 
@@ -2056,10 +2043,7 @@ function renderChordAnswers(selected = null, answersEnabled = false) {
 }
 
 function clearChordResult() {
-    const result = document.querySelector('[data-output="chord-result"]');
-
-    result.classList.remove('correct', 'incorrect');
-    result.textContent = '';
+    clearPracticeResult('chord-result');
 }
 
 function newChordTrial(playImmediately = false) {
@@ -2093,13 +2077,9 @@ function playChordTrial() {
 
     stopAllAudio();
 
-    const rootHz = selectedNoteFrequency(
-        document.querySelector('[data-note="chords"]')
-    );
-    const waveform = document.querySelector('[data-waveform="chords"]').value;
-    const ascending =
-        document.querySelector('[data-control="chord-playback"]').value ===
-        'ascending';
+    const rootHz = selectedNoteFrequency(getNote('chords'));
+    const waveform = getWaveform('chords').value;
+    const ascending = getControl('chord-playback').value === 'ascending';
 
     CHORD_QUALITIES[chord.quality].forEach((semitones, index) => {
         audio.playTransient(
@@ -2117,11 +2097,7 @@ function playChordTrial() {
 }
 
 function saveChordStats() {
-    try {
-        localStorage.setItem(CHORD_STATS_KEY, JSON.stringify(chord.stats));
-    } catch {
-        // Storage is optional.
-    }
+    storage.save(CHORD_STATS_KEY, chord.stats);
 }
 
 function renderChordStats() {
@@ -2130,21 +2106,14 @@ function renderChordStats() {
             ? (chord.stats.correct / chord.stats.trials) * 100
             : 0;
 
-    document.querySelector('[data-output="chord-streak"]').textContent = String(
-        chord.stats.streak
-    );
-    document.querySelector('[data-output="chord-accuracy"]').textContent =
-        `${accuracy.toFixed(0)}%`;
+    getOutput('chord-streak').textContent = String(chord.stats.streak);
+    getOutput('chord-accuracy').textContent = `${accuracy.toFixed(0)}%`;
 }
 
 function clearChordStats() {
     chord.stats = defaultChordStats();
 
-    try {
-        localStorage.removeItem(CHORD_STATS_KEY);
-    } catch {
-        // Storage is optional.
-    }
+    storage.remove(CHORD_STATS_KEY);
 
     renderChordStats();
 }
@@ -2167,22 +2136,680 @@ function commitChord(quality) {
     renderChordStats();
     renderChordAnswers(quality, true);
 
-    const result = document.querySelector('[data-output="chord-result"]');
-
-    result.classList.add(correct ? 'correct' : 'incorrect');
-
-    const icon = document.createElement('strong');
-
-    icon.textContent = correct ? '✓' : '✕';
-
-    result.replaceChildren(
-        icon,
-        document.createTextNode(
-            ` ${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
-        )
+    renderPracticeResult(
+        'chord-result',
+        correct,
+        `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
     );
 
     scheduleChordAdvance();
+}
+
+// Pitch memory
+
+const pitchMemory = {
+    trial: storage.load(PITCH_MEMORY_TRIAL_KEY, null),
+    results: storage.load(PITCH_MEMORY_RESULTS_KEY, []),
+    timer: null,
+    countdown: null,
+    responseVoice: null,
+    mic: {
+        stream: null,
+        source: null,
+        analyser: null,
+        sampleRate: 0,
+        buffer: null,
+        frame: null,
+        lastAnalysis: 0,
+        frequencies: [],
+        detectedHz: null,
+        requestId: 0,
+    },
+};
+
+if (!Array.isArray(pitchMemory.results)) {
+    pitchMemory.results = [];
+}
+
+function savePitchMemoryState() {
+    storage.save(PITCH_MEMORY_RESULTS_KEY, pitchMemory.results);
+
+    if (pitchMemory.trial) {
+        storage.save(PITCH_MEMORY_TRIAL_KEY, pitchMemory.trial);
+    } else {
+        storage.remove(PITCH_MEMORY_TRIAL_KEY);
+    }
+}
+
+function randomSeed() {
+    if (window.crypto?.getRandomValues) {
+        const values = new Uint32Array(1);
+
+        window.crypto.getRandomValues(values);
+
+        return values[0];
+    }
+
+    return Math.floor(Math.random() * 0x100000000);
+}
+
+function seededRandom(seed) {
+    let state = seed >>> 0;
+
+    return () => {
+        state += 0x6d2b79f5;
+
+        let value = state;
+
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+
+        return ((value ^ (value >>> 14)) >>> 0) / 0x100000000;
+    };
+}
+
+function randomPitchMemoryFrequency(random = Math.random) {
+    return (
+        PITCH_MEMORY_MIN_HZ *
+        (PITCH_MEMORY_MAX_HZ / PITCH_MEMORY_MIN_HZ) ** random()
+    );
+}
+
+function getPitchMemoryFrequencyFromSlider() {
+    const cents = Number(getControl('pitch-memory-frequency').value);
+
+    return PITCH_MEMORY_MIN_HZ * 2 ** (cents / 1200);
+}
+
+function renderPitchMemoryResponseFrequency() {
+    getOutput('pitch-memory-response-frequency').textContent =
+        `${getPitchMemoryFrequencyFromSlider().toFixed(3)} Hz`;
+}
+
+function clearPitchMemoryFrequencyMarkers() {
+    getControl('pitch-memory-frequency').classList.remove('has-result');
+
+    for (const name of [
+        'pitch-memory-target-marker',
+        'pitch-memory-response-marker',
+    ]) {
+        const marker = getOutput(name);
+
+        marker.hidden = true;
+        marker.classList.remove('is-correct');
+    }
+}
+
+function showPitchMemoryFrequencyMarkers(result) {
+    const targetMarker = getOutput('pitch-memory-target-marker');
+    const responseMarker = getOutput('pitch-memory-response-marker');
+    const position = (frequency) =>
+        clamp(
+            Math.log2(frequency / PITCH_MEMORY_MIN_HZ) /
+                Math.log2(PITCH_MEMORY_MAX_HZ / PITCH_MEMORY_MIN_HZ),
+            0,
+            1
+        );
+
+    targetMarker.style.left = `${position(result.targetHz) * 100}%`;
+    responseMarker.style.left = `${position(result.responseHz) * 100}%`;
+    responseMarker.classList.toggle(
+        'is-correct',
+        result.absoluteErrorCents < PITCH_MEMORY_CORRECT_CENTS
+    );
+    getControl('pitch-memory-frequency').classList.add('has-result');
+    targetMarker.hidden = false;
+    responseMarker.hidden = false;
+}
+
+function setPitchMemoryStatus(text) {
+    getOutput('pitch-memory-status').textContent = text;
+}
+
+function clearPitchMemoryTimers() {
+    if (pitchMemory.timer !== null) {
+        clearTimeout(pitchMemory.timer);
+        pitchMemory.timer = null;
+    }
+
+    if (pitchMemory.countdown !== null) {
+        clearInterval(pitchMemory.countdown);
+        pitchMemory.countdown = null;
+    }
+}
+
+function stopPitchMemoryResponseTone() {
+    if (pitchMemory.responseVoice) {
+        pitchMemory.responseVoice.stop();
+        pitchMemory.responseVoice = null;
+    }
+}
+
+function setPitchMemoryMicActive(active) {
+    const button = getAction('toggle-pitch-memory-mic');
+
+    if (!button) {
+        return;
+    }
+
+    button.setAttribute('aria-pressed', String(active));
+    button.classList.toggle('is-active', active);
+    button.textContent = active ? 'Stop microphone' : 'Start microphone';
+}
+
+function stopPitchMemoryMic() {
+    if (!pitchMemory?.mic) {
+        return;
+    }
+
+    const mic = pitchMemory.mic;
+
+    if (mic.frame !== null) {
+        cancelAnimationFrame(mic.frame);
+        mic.frame = null;
+    }
+
+    stopMicrophoneInput(mic);
+    mic.frequencies = [];
+
+    setPitchMemoryMicActive(false);
+}
+
+function analyzePitchMemoryMic(time) {
+    const mic = pitchMemory.mic;
+
+    if (!mic.analyser || !mic.buffer) {
+        return;
+    }
+
+    if (time - mic.lastAnalysis >= TUNER_ANALYSIS_INTERVAL_MS) {
+        mic.lastAnalysis = time;
+        mic.analyser.getFloatTimeDomainData(mic.buffer);
+
+        const frequencyHz = detectPitchYin(
+            mic.buffer,
+            mic.sampleRate,
+            80,
+            1400
+        );
+
+        if (frequencyHz !== null) {
+            mic.frequencies.push(frequencyHz);
+
+            if (mic.frequencies.length > 9) {
+                mic.frequencies.shift();
+            }
+
+            mic.detectedHz = median(mic.frequencies);
+
+            getOutput('pitch-memory-detected-frequency').textContent =
+                `${mic.detectedHz.toFixed(3)} Hz detected`;
+            const response = document.querySelector(
+                '.pitch-memory-microphone-response'
+            );
+
+            getAction('submit-pitch-memory', response).disabled =
+                mic.frequencies.length < 5;
+        }
+    }
+
+    mic.frame = requestAnimationFrame(analyzePitchMemoryMic);
+}
+
+async function startPitchMemoryMic() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        setPitchMemoryStatus('Microphone access unavailable.');
+        return;
+    }
+
+    stopGeneratedAudio();
+    stopMicTuner();
+
+    const mic = pitchMemory.mic;
+
+    setPitchMemoryStatus('Requesting microphone access...');
+
+    try {
+        if (!(await startMicrophoneInput(mic, 4096))) {
+            return;
+        }
+
+        mic.lastAnalysis = 0;
+        mic.frequencies = [];
+        mic.detectedHz = null;
+
+        getOutput('pitch-memory-detected-frequency').textContent =
+            'Sing or hum a steady pitch';
+        setPitchMemoryStatus('Listening for a stable pitch.');
+        setPitchMemoryMicActive(true);
+        mic.frame = requestAnimationFrame(analyzePitchMemoryMic);
+    } catch (error) {
+        setPitchMemoryStatus(
+            error?.name === 'NotAllowedError'
+                ? 'Microphone permission denied.'
+                : 'Could not start microphone.'
+        );
+    }
+}
+
+function togglePitchMemoryMic() {
+    if (pitchMemory.mic.stream) {
+        stopPitchMemoryMic();
+        setPitchMemoryStatus('Microphone stopped.');
+        return;
+    }
+
+    void startPitchMemoryMic();
+}
+
+function getPitchMemoryCondition() {
+    const test = getControl('pitch-memory-test').value;
+
+    return test === 'novel'
+        ? `${getControl('pitch-memory-delay').value}s delay`
+        : `${getControl('pitch-memory-distractors').value} distractors`;
+}
+
+function resultMatchesCurrentCondition(result) {
+    return (
+        result.test === getControl('pitch-memory-test').value &&
+        result.method === getControl('pitch-memory-response').value &&
+        result.condition === getPitchMemoryCondition()
+    );
+}
+
+function renderPitchMemoryReport() {
+    const results = pitchMemory.results.filter(resultMatchesCurrentCondition);
+    const errors = results.map((result) => Math.abs(result.errorCents));
+    const meanError =
+        errors.length > 0
+            ? errors.reduce((total, error) => total + error, 0) / errors.length
+            : null;
+    let streak = 0;
+
+    for (let index = errors.length - 1; index >= 0; index -= 1) {
+        if (errors[index] >= PITCH_MEMORY_CORRECT_CENTS) {
+            break;
+        }
+
+        streak += 1;
+    }
+
+    getOutput('pitch-memory-streak').textContent = String(streak);
+    getOutput('pitch-memory-mean-error').textContent =
+        meanError === null ? '--' : `${meanError.toFixed(1)} cents`;
+}
+
+function showPitchMemoryResponse() {
+    if (!pitchMemory.trial || pitchMemory.trial.state === 'responding') {
+        return;
+    }
+
+    clearPitchMemoryTimers();
+    audio.stopTransient();
+
+    pitchMemory.trial.state = 'responding';
+    pitchMemory.trial.responseStartedAt = Date.now();
+
+    const oscillator =
+        pitchMemory.trial.method === 'oscillator'
+            ? document.querySelector('.pitch-memory-oscillator-response')
+            : document.querySelector('.pitch-memory-microphone-response');
+
+    document.querySelector('.pitch-memory-oscillator-response').hidden = true;
+    document.querySelector('.pitch-memory-microphone-response').hidden = true;
+    oscillator.hidden = false;
+
+    if (pitchMemory.trial.method === 'oscillator') {
+        const random = seededRandom(pitchMemory.trial.seed ^ 0xa55a5aa5);
+        const targetCents =
+            1200 * Math.log2(pitchMemory.trial.targetHz / PITCH_MEMORY_MIN_HZ);
+        const direction = random() < 0.5 ? -1 : 1;
+        const offset = direction * (300 + random() * 900);
+
+        getControl('pitch-memory-frequency').value = String(
+            clamp(targetCents + offset, 0, PITCH_MEMORY_RANGE_CENTS)
+        );
+        renderPitchMemoryResponseFrequency();
+        clearPitchMemoryFrequencyMarkers();
+        getAction('submit-pitch-memory', oscillator).disabled = false;
+        setPitchMemoryStatus(
+            'Adjust the tone to the frequency you remember, then submit.'
+        );
+    } else {
+        pitchMemory.mic.detectedHz = null;
+        getOutput('pitch-memory-detected-frequency').textContent =
+            'No stable pitch';
+        getAction(
+            'submit-pitch-memory',
+            document.querySelector('.pitch-memory-microphone-response')
+        ).disabled = true;
+        setPitchMemoryStatus('Produce the remembered pitch, then submit.');
+    }
+
+    savePitchMemoryState();
+}
+
+function renderPitchMemoryCountdown() {
+    if (!pitchMemory.trial || pitchMemory.trial.state !== 'waiting') {
+        return;
+    }
+
+    const remaining = Math.max(0, pitchMemory.trial.availableAt - Date.now());
+
+    if (remaining <= 0) {
+        showPitchMemoryResponse();
+        return;
+    }
+
+    const seconds = Math.ceil(remaining / 1000);
+    const display =
+        seconds < 60
+            ? `${seconds} second${seconds === 1 ? '' : 's'}`
+            : `${Math.ceil(seconds / 60)} minute${seconds <= 60 ? '' : 's'}`;
+
+    setPitchMemoryStatus(
+        `Recall opens in ${display}. Do not use a pitch reference.`
+    );
+}
+
+function schedulePitchMemoryResponse() {
+    clearPitchMemoryTimers();
+    renderPitchMemoryCountdown();
+
+    if (!pitchMemory.trial || pitchMemory.trial.state !== 'waiting') {
+        return;
+    }
+
+    const remaining = Math.max(0, pitchMemory.trial.availableAt - Date.now());
+
+    pitchMemory.timer = window.setTimeout(showPitchMemoryResponse, remaining);
+    pitchMemory.countdown = window.setInterval(
+        renderPitchMemoryCountdown,
+        1000
+    );
+}
+
+function playInterferenceSequence(random, count) {
+    for (let index = 0; index < count; index += 1) {
+        let frequencyHz = randomPitchMemoryFrequency(random);
+
+        while (
+            Math.abs(centsBetween(frequencyHz, pitchMemory.trial.targetHz)) <
+            200
+        ) {
+            frequencyHz = randomPitchMemoryFrequency(random);
+        }
+
+        audio.playTransient(
+            frequencyHz,
+            'sine',
+            0.12,
+            0.7,
+            1.45 + index * 0.18
+        );
+    }
+}
+
+function playNovelPitchMemoryMelody(random, startingHz) {
+    const intervals = [0];
+    let semitones = 0;
+
+    for (let index = 1; index < 8; index += 1) {
+        const steps = [-5, -3, -2, 2, 3, 5];
+        const step = steps[Math.floor(random() * steps.length)];
+
+        semitones = clamp(semitones + step, -7, 12);
+        intervals.push(semitones);
+    }
+
+    intervals.forEach((interval, index) => {
+        audio.playTransient(
+            startingHz * 2 ** (interval / 12),
+            'sine',
+            0.3,
+            0.75,
+            index * 0.38
+        );
+    });
+}
+
+function startPitchMemoryTrial() {
+    cancelPitchMemoryTrial(false);
+
+    const test = getControl('pitch-memory-test').value;
+    const method = getControl('pitch-memory-response').value;
+    const seed = randomSeed();
+    const random = seededRandom(seed);
+    const distractors = Number(getControl('pitch-memory-distractors').value);
+    const delaySeconds = Number(getControl('pitch-memory-delay').value);
+    const sequenceSeconds = 1.45 + distractors * 0.18;
+
+    pitchMemory.trial = {
+        test,
+        method,
+        condition:
+            test === 'novel'
+                ? `${delaySeconds}s delay`
+                : `${distractors} distractors`,
+        targetHz: randomPitchMemoryFrequency(random),
+        seed,
+        encodedAt: Date.now(),
+        encodingEndsAt: Date.now() + (test === 'novel' ? 3000 : 1200),
+        availableAt:
+            Date.now() +
+            (test === 'novel' ? delaySeconds + 3 : sequenceSeconds) * 1000,
+        state: 'waiting',
+    };
+
+    document.querySelector('.pitch-memory-oscillator-response').hidden = true;
+    document.querySelector('.pitch-memory-microphone-response').hidden = true;
+    clearPitchMemoryFrequencyMarkers();
+    getOutput('pitch-memory-result').textContent = '';
+    getAction('start-pitch-memory').disabled = true;
+    getAction('stop-pitch-memory').disabled = false;
+
+    if (test === 'novel') {
+        playNovelPitchMemoryMelody(random, pitchMemory.trial.targetHz);
+    } else {
+        audio.playTransient(pitchMemory.trial.targetHz, 'sine', 1.2, 0.8);
+        playInterferenceSequence(random, distractors);
+    }
+
+    savePitchMemoryState();
+    schedulePitchMemoryResponse();
+}
+
+function cancelPitchMemoryTrial(showStatus = true) {
+    clearPitchMemoryTimers();
+    stopPitchMemoryResponseTone();
+    stopPitchMemoryMic();
+    audio.stopTransient();
+
+    pitchMemory.trial = null;
+
+    const startButton = getAction('start-pitch-memory');
+
+    if (!startButton) {
+        return;
+    }
+
+    startButton.disabled = false;
+    getAction('stop-pitch-memory').disabled = true;
+    document.querySelector('.pitch-memory-oscillator-response').hidden = true;
+    document.querySelector('.pitch-memory-microphone-response').hidden = true;
+
+    if (showStatus) {
+        setPitchMemoryStatus('Trial cancelled.');
+    }
+
+    savePitchMemoryState();
+}
+
+function playPitchMemoryResponse() {
+    if (document.querySelector('.pitch-memory-oscillator-response').hidden) {
+        return;
+    }
+
+    stopPitchMemoryResponseTone();
+    pitchMemory.responseVoice = audio.playContinuous(
+        getPitchMemoryFrequencyFromSlider(),
+        'sine',
+        0.8
+    );
+}
+
+function updatePitchMemoryResponseTone() {
+    renderPitchMemoryResponseFrequency();
+    pitchMemory.responseVoice?.setFrequency(
+        getPitchMemoryFrequencyFromSlider()
+    );
+}
+
+function submitPitchMemoryResponse() {
+    if (!pitchMemory.trial || pitchMemory.trial.state !== 'responding') {
+        return;
+    }
+
+    const responseHz =
+        pitchMemory.trial.method === 'oscillator'
+            ? getPitchMemoryFrequencyFromSlider()
+            : pitchMemory.mic.detectedHz;
+
+    if (!Number.isFinite(responseHz) || responseHz <= 0) {
+        return;
+    }
+
+    const errorCents = centsBetween(responseHz, pitchMemory.trial.targetHz);
+    const result = {
+        timestamp: new Date().toISOString(),
+        test: pitchMemory.trial.test,
+        method: pitchMemory.trial.method,
+        condition: pitchMemory.trial.condition,
+        targetHz: pitchMemory.trial.targetHz,
+        responseHz,
+        errorCents,
+        absoluteErrorCents: Math.abs(errorCents),
+        responseTimeMs: Date.now() - pitchMemory.trial.responseStartedAt,
+        waveform: 'sine',
+        seed: pitchMemory.trial.seed,
+    };
+
+    pitchMemory.results.push(result);
+    stopPitchMemoryResponseTone();
+    stopPitchMemoryMic();
+
+    getOutput('pitch-memory-result').textContent =
+        `Target ${result.targetHz.toFixed(3)} Hz; response ${result.responseHz.toFixed(3)} Hz; error ${signed(result.errorCents, 1)} cents.`;
+
+    if (pitchMemory.trial.method === 'oscillator') {
+        showPitchMemoryFrequencyMarkers(result);
+        getAction(
+            'submit-pitch-memory',
+            document.querySelector('.pitch-memory-oscillator-response')
+        ).disabled = true;
+    } else {
+        getAction(
+            'submit-pitch-memory',
+            document.querySelector('.pitch-memory-microphone-response')
+        ).disabled = true;
+    }
+
+    pitchMemory.trial = null;
+    getAction('start-pitch-memory').disabled = false;
+    getAction('stop-pitch-memory').disabled = true;
+
+    savePitchMemoryState();
+    renderPitchMemoryReport();
+    setPitchMemoryStatus('Trial complete.');
+}
+
+function updatePitchMemoryControls() {
+    const novel = getControl('pitch-memory-test').value === 'novel';
+
+    document.querySelector('.pitch-memory-novel-control').hidden = !novel;
+    document.querySelector('.pitch-memory-interference-control').hidden = novel;
+    renderPitchMemoryReport();
+}
+
+function csvCell(value) {
+    const text = String(value);
+
+    return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function exportPitchMemoryResults() {
+    const fields = [
+        'timestamp',
+        'test',
+        'method',
+        'condition',
+        'targetHz',
+        'responseHz',
+        'errorCents',
+        'absoluteErrorCents',
+        'responseTimeMs',
+        'waveform',
+        'seed',
+    ];
+    const rows = [
+        fields.join(','),
+        ...pitchMemory.results.map((result) =>
+            fields.map((field) => csvCell(result[field])).join(',')
+        ),
+    ];
+    const url = URL.createObjectURL(
+        new Blob([`${rows.join('\n')}\n`], { type: 'text/csv;charset=utf-8' })
+    );
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'pitch-memory-results.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+function clearPitchMemoryStats() {
+    pitchMemory.results = [];
+    savePitchMemoryState();
+    renderPitchMemoryReport();
+}
+
+function restorePitchMemoryTrial() {
+    if (!pitchMemory.trial || !Number.isFinite(pitchMemory.trial.targetHz)) {
+        pitchMemory.trial = null;
+        savePitchMemoryState();
+        return;
+    }
+
+    getAction('start-pitch-memory').disabled = true;
+    getAction('stop-pitch-memory').disabled = false;
+
+    getControl('pitch-memory-test').value = pitchMemory.trial.test;
+    getControl('pitch-memory-response').value = pitchMemory.trial.method;
+
+    const conditionValue = pitchMemory.trial.condition.split(' ')[0];
+
+    if (pitchMemory.trial.test === 'novel') {
+        getControl('pitch-memory-delay').value = conditionValue.replace(
+            's',
+            ''
+        );
+    } else {
+        getControl('pitch-memory-distractors').value = conditionValue;
+    }
+
+    updatePitchMemoryControls();
+
+    if (
+        pitchMemory.trial.state === 'responding' ||
+        pitchMemory.trial.availableAt <= Date.now()
+    ) {
+        pitchMemory.trial.state = 'waiting';
+        showPitchMemoryResponse();
+    } else {
+        schedulePitchMemoryResponse();
+    }
 }
 
 // Events
@@ -2200,62 +2827,48 @@ function resetForReferenceChange() {
 }
 
 function initializeEvents() {
-    document
-        .querySelector('[data-note="tuner"]')
-        .addEventListener('change', (event) => {
-            updateNoteReadout(event.currentTarget);
+    getNote('tuner').addEventListener('change', (event) => {
+        updateNoteReadout(event.currentTarget);
 
-            if (tunerVoice) {
-                tunerVoice.setFrequency(
-                    selectedNoteFrequency(event.currentTarget)
-                );
-            }
-        });
+        if (tunerVoice) {
+            tunerVoice.setFrequency(selectedNoteFrequency(event.currentTarget));
+        }
+    });
 
-    document
-        .querySelector('[data-control="metronome-time-signature"]')
-        .addEventListener('change', () => {
-            metronome.beatIndex = 0;
+    getControl('metronome-time-signature').addEventListener('change', () => {
+        metronome.beatIndex = 0;
 
-            if (metronome.running) {
-                audio.stopTransient();
-                metronome.nextBeatTime = audio.currentTime() + 0.05;
-            }
-        });
+        if (metronome.running) {
+            audio.stopTransient();
+            metronome.nextBeatTime = audio.currentTime() + 0.05;
+        }
+    });
 
-    document
-        .querySelector('[data-action="play-metronome"]')
-        .addEventListener('click', startMetronome);
+    getAction('play-metronome').addEventListener('click', startMetronome);
 
-    document
-        .querySelector('[data-action="tap-tempo"]')
-        .addEventListener('click', tapTempo);
+    getAction('tap-tempo').addEventListener('click', tapTempo);
 
-    document
-        .querySelector('[data-note="placement"]')
-        .addEventListener('change', (event) => {
-            updateNoteReadout(event.currentTarget);
+    getNote('placement').addEventListener('change', (event) => {
+        updateNoteReadout(event.currentTarget);
 
-            newPlacementTrial();
-        });
+        newPlacementTrial();
+    });
 
-    document
-        .querySelector('[data-note="pick"]')
-        .addEventListener('change', (event) => {
-            updateNoteReadout(event.currentTarget);
+    getNote('pick').addEventListener('change', (event) => {
+        updateNoteReadout(event.currentTarget);
 
-            newPickSet();
-        });
+        newPickSet();
+    });
 
-    document
-        .querySelector('[data-note="chords"]')
-        .addEventListener('change', (event) => {
-            updateNoteReadout(event.currentTarget);
-            newChordTrial();
-        });
+    getNote('chords').addEventListener('change', (event) => {
+        updateNoteReadout(event.currentTarget);
+        newChordTrial();
+    });
 
-    for (const control of document.querySelectorAll(
-        '[data-control="placement-range-min"], [data-control="placement-range-max"], [data-control="placement-interval"]'
+    for (const control of getControls(
+        'placement-range-min',
+        'placement-range-max',
+        'placement-interval'
     )) {
         control.addEventListener('change', () => {
             resetAdaptiveProgress('placement');
@@ -2263,8 +2876,10 @@ function initializeEvents() {
         });
     }
 
-    for (const control of document.querySelectorAll(
-        '[data-control="pick-range-min"], [data-control="pick-range-max"], [data-control="pick-count"]'
+    for (const control of getControls(
+        'pick-range-min',
+        'pick-range-max',
+        'pick-count'
     )) {
         control.addEventListener('change', () => {
             resetAdaptiveProgress('pick');
@@ -2273,18 +2888,14 @@ function initializeEvents() {
     }
 
     for (const exercise of ['placement', 'pick']) {
-        document
-            .querySelector(`[data-control="${exercise}-adaptive"]`)
-            .addEventListener('change', () => {
-                resetAdaptiveProgress(exercise);
-            });
+        getControl(`${exercise}-adaptive`).addEventListener('change', () => {
+            resetAdaptiveProgress(exercise);
+        });
     }
 
-    document
-        .querySelector('[data-control="volume"]')
-        .addEventListener('input', updateVolume);
+    getControl('volume').addEventListener('input', updateVolume);
 
-    const a4Input = document.querySelector('[data-control="a4"]');
+    const a4Input = getControl('a4');
 
     a4Input.addEventListener('input', resetForReferenceChange);
     a4Input.addEventListener('change', () => {
@@ -2292,58 +2903,37 @@ function initializeEvents() {
         resetForReferenceChange();
     });
 
-    document
-        .querySelector('[data-control="placement-duration"]')
-        .addEventListener('change', (event) => {
-            normalizeNumberInput(event.currentTarget, 1);
-        });
+    getControl('placement-duration').addEventListener('change', (event) => {
+        normalizeNumberInput(event.currentTarget, 1);
+    });
 
-    document
-        .querySelector('[data-control="pick-duration"]')
-        .addEventListener('change', (event) => {
-            normalizeNumberInput(event.currentTarget, 1);
-        });
+    getControl('pick-duration').addEventListener('change', (event) => {
+        normalizeNumberInput(event.currentTarget, 1);
+    });
 
-    document
-        .querySelector('[data-action="reset-a4"]')
-        .addEventListener('click', () => {
-            document.querySelector('[data-control="a4"]').value =
-                DEFAULT_A4.toFixed(3);
+    getAction('reset-a4').addEventListener('click', () => {
+        getControl('a4').value = DEFAULT_A4.toFixed(3);
 
-            resetForReferenceChange();
-        });
+        resetForReferenceChange();
+    });
 
-    document
-        .querySelector('[data-action="play-tuner"]')
-        .addEventListener('click', playTuner);
+    getAction('play-tuner').addEventListener('click', playTuner);
 
-    document
-        .querySelector('[data-action="toggle-tuner-mic"]')
-        .addEventListener('click', toggleMicTuner);
+    getAction('toggle-tuner-mic').addEventListener('click', toggleMicTuner);
 
-    document
-        .querySelector('[data-action="play-placement"]')
-        .addEventListener('click', playPlacementTrial);
+    getAction('play-placement').addEventListener('click', playPlacementTrial);
 
-    document
-        .querySelector('[data-action="new-placement"]')
-        .addEventListener('click', () => {
-            newPlacementTrial(true);
-        });
+    getAction('new-placement').addEventListener('click', () => {
+        newPlacementTrial(true);
+    });
 
-    document
-        .querySelector('[data-action="new-pick"]')
-        .addEventListener('click', newPickSet);
+    getAction('new-pick').addEventListener('click', newPickSet);
 
-    document
-        .querySelector('[data-action="play-chord"]')
-        .addEventListener('click', playChordTrial);
+    getAction('play-chord').addEventListener('click', playChordTrial);
 
-    document
-        .querySelector('[data-action="new-chord"]')
-        .addEventListener('click', () => {
-            newChordTrial(true);
-        });
+    getAction('new-chord').addEventListener('click', () => {
+        newChordTrial(true);
+    });
 
     document
         .querySelector('[data-chord-answers]')
@@ -2365,19 +2955,81 @@ function initializeEvents() {
             }
         });
 
-    document
-        .querySelector('[data-control="chord-playback"]')
-        .addEventListener('change', stopGeneratedAudio);
+    getControl('chord-playback').addEventListener('change', stopGeneratedAudio);
 
-    for (const button of document.querySelectorAll('[data-judgment]')) {
-        button.addEventListener('click', () => {
-            commitPlacement(button.dataset.judgment);
+    for (const control of getControls(
+        'pitch-memory-test',
+        'pitch-memory-response',
+        'pitch-memory-delay',
+        'pitch-memory-distractors'
+    )) {
+        control.addEventListener('change', () => {
+            if (pitchMemory.trial) {
+                cancelPitchMemoryTrial();
+            }
+
+            updatePitchMemoryControls();
         });
     }
 
+    getAction('start-pitch-memory').addEventListener(
+        'click',
+        startPitchMemoryTrial
+    );
+
+    getAction('stop-pitch-memory').addEventListener(
+        'click',
+        cancelPitchMemoryTrial
+    );
+
+    getAction('new-pitch-memory').addEventListener(
+        'click',
+        startPitchMemoryTrial
+    );
+
+    getAction('play-pitch-memory-response').addEventListener(
+        'click',
+        playPitchMemoryResponse
+    );
+
+    getAction('stop-pitch-memory-response').addEventListener(
+        'click',
+        stopPitchMemoryResponseTone
+    );
+
+    getControl('pitch-memory-frequency').addEventListener(
+        'input',
+        updatePitchMemoryResponseTone
+    );
+
+    getAction('toggle-pitch-memory-mic').addEventListener(
+        'click',
+        togglePitchMemoryMic
+    );
+
+    for (const button of getActions('submit-pitch-memory')) {
+        button.addEventListener('click', submitPitchMemoryResponse);
+    }
+
+    getAction('export-pitch-memory').addEventListener(
+        'click',
+        exportPitchMemoryResults
+    );
+
+    getAction('clear-pitch-memory-stats').addEventListener(
+        'click',
+        clearPitchMemoryStats
+    );
+
     for (const button of document.querySelectorAll(
-        '[data-action="stop-audio"]'
+        '.placement-judgment .answer-option'
     )) {
+        button.addEventListener('click', () => {
+            commitPlacement(button.dataset.answer);
+        });
+    }
+
+    for (const button of getActions('stop-audio')) {
         button.addEventListener('click', () => {
             stopAllAudio();
             cancelPlacementAdvance();
@@ -2391,11 +3043,11 @@ function initializeEvents() {
     }
 
     document
-        .querySelector('[data-candidates]')
+        .querySelector('.pick-target-candidate-list')
         .addEventListener('click', (event) => {
             const button = event.target.closest('button[data-action]');
 
-            const row = button?.closest('.candidate-row');
+            const row = button?.closest('.pick-target-candidate-row');
 
             if (!button || !row) {
                 return;
@@ -2413,17 +3065,14 @@ function initializeEvents() {
             }
         });
 
-    document
-        .querySelector('[data-action="clear-placement-stats"]')
-        .addEventListener('click', clearPlacementStats);
+    getAction('clear-placement-stats').addEventListener(
+        'click',
+        clearPlacementStats
+    );
 
-    document
-        .querySelector('[data-action="clear-pick-stats"]')
-        .addEventListener('click', clearPickStats);
+    getAction('clear-pick-stats').addEventListener('click', clearPickStats);
 
-    document
-        .querySelector('[data-action="clear-chord-stats"]')
-        .addEventListener('click', clearChordStats);
+    getAction('clear-chord-stats').addEventListener('click', clearChordStats);
 }
 
 // Initialization
@@ -2446,6 +3095,9 @@ function initialize() {
 
     renderPickStats();
     renderChordStats();
+    updatePitchMemoryControls();
+    renderPitchMemoryResponseFrequency();
+    restorePitchMemoryTrial();
 
     initializeEvents();
 }
@@ -2457,4 +3109,15 @@ window.addEventListener('beforeunload', () => {
     cancelPlacementAdvance();
     cancelPickAdvance();
     cancelChordAdvance();
+    clearPitchMemoryTimers();
+    stopPitchMemoryResponseTone();
+
+    if (
+        pitchMemory.trial?.state === 'waiting' &&
+        (pitchMemory.trial.test === 'interference' ||
+            Date.now() < pitchMemory.trial.encodingEndsAt)
+    ) {
+        pitchMemory.trial = null;
+        savePitchMemoryState();
+    }
 });
