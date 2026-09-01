@@ -2003,6 +2003,7 @@ function loadChordStats() {
 const chord = {
     quality: null,
     committed: false,
+    playedNotes: [],
     stats: loadChordStats(),
 };
 
@@ -2072,6 +2073,7 @@ function newChordTrial(playImmediately = false) {
             ? qualities[Math.floor(Math.random() * qualities.length)]
             : null;
     chord.committed = false;
+    chord.playedNotes = [];
 
     clearChordResult();
     renderChordAnswers();
@@ -2092,9 +2094,14 @@ function playChordTrial() {
 
     stopAllAudio();
 
-    const rootHz = selectedNoteFrequency(getNote('chords'));
+    const rootMidi = Number(getNote('chords').value);
+    const rootHz = midiFrequency(rootMidi);
     const waveform = getWaveform('chords').value;
     const ascending = getControl('chord-playback').value === 'ascending';
+
+    chord.playedNotes = CHORD_QUALITIES[chord.quality].map(
+        (semitones) => rootMidi + semitones
+    );
 
     CHORD_QUALITIES[chord.quality].forEach((semitones, index) => {
         audio.playTransient(
@@ -2156,6 +2163,14 @@ function commitChord(quality) {
         correct,
         `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
     );
+
+    const playedNotes = document.createElement('div');
+
+    playedNotes.className = 'chord-played-notes';
+    playedNotes.textContent = `Notes: ${chord.playedNotes
+        .map(midiToNoteName)
+        .join(', ')}`;
+    getOutput('chord-result').append(playedNotes);
 
     scheduleChordAdvance();
 }

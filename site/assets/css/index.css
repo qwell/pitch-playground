@@ -1175,6 +1175,12 @@ main {
     white-space: nowrap;
 }
 
+.chord-played-notes {
+    margin-top: 4px;
+
+    color: var(--text);
+}
+
 /* Pitch memory */
 
 .pitch-memory-detected-frequency {
