@@ -2182,6 +2182,7 @@ const pitchMemory = {
     results: storage.load(PITCH_MEMORY_RESULTS_KEY, []),
     timer: null,
     countdown: null,
+    replayTimer: null,
     responseVoice: null,
     mic: {
         stream: null,
@@ -2502,6 +2503,8 @@ function showPitchMemoryResponse() {
         );
         renderPitchMemoryResponseFrequency();
         clearPitchMemoryFrequencyMarkers();
+        getAction('play-pitch-memory-response').disabled = false;
+        getAction('stop-pitch-memory-response').disabled = false;
         getAction('submit-pitch-memory', oscillator).disabled = false;
         setPitchMemoryStatus(
             'Adjust the tone to the frequency you remember, then submit.'
@@ -2604,8 +2607,78 @@ function playNovelPitchMemoryMelody(random, startingHz) {
     });
 }
 
+function setPitchMemoryReplayEnabled(enabled) {
+    getAction('start-pitch-memory').disabled = !enabled;
+}
+
+function playPitchMemoryStimulus() {
+    if (
+        !pitchMemory.trial ||
+        pitchMemory.trial.state === 'complete' ||
+        pitchMemory.trial.stimulusPlayed
+    ) {
+        return;
+    }
+
+    audio.stopTransient();
+
+    const random = seededRandom(pitchMemory.trial.seed);
+    const startedAt = Date.now();
+    const conditionValue = Number.parseInt(pitchMemory.trial.condition, 10);
+    const sequenceSeconds = 1.45 + conditionValue * 0.18;
+
+    pitchMemory.trial.state = 'waiting';
+    pitchMemory.trial.encodedAt = startedAt;
+    pitchMemory.trial.encodingEndsAt =
+        startedAt + (pitchMemory.trial.test === 'novel' ? 3000 : 1200);
+    pitchMemory.trial.availableAt =
+        startedAt +
+        (pitchMemory.trial.test === 'novel'
+            ? conditionValue + 3
+            : sequenceSeconds) *
+            1000;
+    getAction('stop-pitch-memory').disabled = false;
+
+    // Consume the value originally used to select targetHz.
+    randomPitchMemoryFrequency(random);
+
+    if (pitchMemory.trial.test === 'novel') {
+        playNovelPitchMemoryMelody(random, pitchMemory.trial.targetHz);
+    } else {
+        audio.playTransient(pitchMemory.trial.targetHz, 'sine', 1.2, 0.8);
+        playInterferenceSequence(random, conditionValue);
+    }
+
+    const trialSeed = pitchMemory.trial.seed;
+    const playbackSeconds =
+        pitchMemory.trial.test === 'novel'
+            ? 3
+            : Math.max(1.2, 1.45 + conditionValue * 0.18);
+
+    if (pitchMemory.replayTimer !== null) {
+        clearTimeout(pitchMemory.replayTimer);
+    }
+
+    pitchMemory.replayTimer = window.setTimeout(() => {
+        pitchMemory.replayTimer = null;
+
+        if (pitchMemory.trial?.seed !== trialSeed) {
+            return;
+        }
+
+        pitchMemory.trial.stimulusPlayed = true;
+        setPitchMemoryReplayEnabled(false);
+        getAction('stop-pitch-memory').disabled = true;
+        savePitchMemoryState();
+    }, playbackSeconds * 1000);
+
+    savePitchMemoryState();
+    schedulePitchMemoryResponse();
+}
+
 function startPitchMemoryTrial() {
     cancelPitchMemoryTrial(false);
+    getControl('pitch-memory-frequency').disabled = false;
 
     const test = getControl('pitch-memory-test').value;
     const method = getControl('pitch-memory-response').value;
@@ -2630,28 +2703,27 @@ function startPitchMemoryTrial() {
             Date.now() +
             (test === 'novel' ? delaySeconds + 3 : sequenceSeconds) * 1000,
         state: 'waiting',
+        stimulusPlayed: false,
     };
 
     document.querySelector('.pitch-memory-oscillator-response').hidden = true;
     document.querySelector('.pitch-memory-microphone-response').hidden = true;
     clearPitchMemoryFrequencyMarkers();
     getOutput('pitch-memory-result').textContent = '';
-    getAction('start-pitch-memory').disabled = true;
+    setPitchMemoryReplayEnabled(true);
     getAction('stop-pitch-memory').disabled = false;
 
-    if (test === 'novel') {
-        playNovelPitchMemoryMelody(random, pitchMemory.trial.targetHz);
-    } else {
-        audio.playTransient(pitchMemory.trial.targetHz, 'sine', 1.2, 0.8);
-        playInterferenceSequence(random, distractors);
-    }
-
-    savePitchMemoryState();
-    schedulePitchMemoryResponse();
+    playPitchMemoryStimulus();
 }
 
 function cancelPitchMemoryTrial(showStatus = true) {
     clearPitchMemoryTimers();
+
+    if (pitchMemory.replayTimer !== null) {
+        clearTimeout(pitchMemory.replayTimer);
+        pitchMemory.replayTimer = null;
+    }
+
     stopPitchMemoryResponseTone();
     stopPitchMemoryMic();
     audio.stopTransient();
@@ -2664,7 +2736,7 @@ function cancelPitchMemoryTrial(showStatus = true) {
         return;
     }
 
-    startButton.disabled = false;
+    startButton.disabled = true;
     getAction('stop-pitch-memory').disabled = true;
     document.querySelector('.pitch-memory-oscillator-response').hidden = true;
     document.querySelector('.pitch-memory-microphone-response').hidden = true;
@@ -2676,8 +2748,35 @@ function cancelPitchMemoryTrial(showStatus = true) {
     savePitchMemoryState();
 }
 
+function stopPitchMemoryAudio() {
+    clearPitchMemoryTimers();
+    audio.stopTransient();
+    stopPitchMemoryResponseTone();
+    stopPitchMemoryMic();
+
+    if (pitchMemory.replayTimer !== null) {
+        clearTimeout(pitchMemory.replayTimer);
+        pitchMemory.replayTimer = null;
+    }
+
+    if (pitchMemory.trial?.state !== 'complete') {
+        pitchMemory.trial.state = 'stopped';
+        getAction('stop-pitch-memory').disabled = true;
+        document.querySelector('.pitch-memory-oscillator-response').hidden =
+            true;
+        document.querySelector('.pitch-memory-microphone-response').hidden =
+            true;
+        setPitchMemoryStatus('Trial paused.');
+        savePitchMemoryState();
+    }
+}
+
 function playPitchMemoryResponse() {
-    if (document.querySelector('.pitch-memory-oscillator-response').hidden) {
+    if (
+        document.querySelector('.pitch-memory-oscillator-response').hidden ||
+        !pitchMemory.trial ||
+        pitchMemory.trial.state !== 'responding'
+    ) {
         return;
     }
 
@@ -2734,6 +2833,9 @@ function submitPitchMemoryResponse() {
 
     if (pitchMemory.trial.method === 'oscillator') {
         showPitchMemoryFrequencyMarkers(result);
+        getControl('pitch-memory-frequency').disabled = true;
+        getAction('play-pitch-memory-response').disabled = true;
+        getAction('stop-pitch-memory-response').disabled = true;
         getAction(
             'submit-pitch-memory',
             document.querySelector('.pitch-memory-oscillator-response')
@@ -2745,8 +2847,8 @@ function submitPitchMemoryResponse() {
         ).disabled = true;
     }
 
-    pitchMemory.trial = null;
-    getAction('start-pitch-memory').disabled = false;
+    pitchMemory.trial.state = 'complete';
+    setPitchMemoryReplayEnabled(false);
     getAction('stop-pitch-memory').disabled = true;
 
     savePitchMemoryState();
@@ -2803,43 +2905,6 @@ function clearPitchMemoryStats() {
     pitchMemory.results = [];
     savePitchMemoryState();
     renderPitchMemoryReport();
-}
-
-function restorePitchMemoryTrial() {
-    if (!pitchMemory.trial || !Number.isFinite(pitchMemory.trial.targetHz)) {
-        pitchMemory.trial = null;
-        savePitchMemoryState();
-        return;
-    }
-
-    getAction('start-pitch-memory').disabled = true;
-    getAction('stop-pitch-memory').disabled = false;
-
-    getControl('pitch-memory-test').value = pitchMemory.trial.test;
-    getControl('pitch-memory-response').value = pitchMemory.trial.method;
-
-    const conditionValue = pitchMemory.trial.condition.split(' ')[0];
-
-    if (pitchMemory.trial.test === 'novel') {
-        getControl('pitch-memory-delay').value = conditionValue.replace(
-            's',
-            ''
-        );
-    } else {
-        getControl('pitch-memory-distractors').value = conditionValue;
-    }
-
-    updatePitchMemoryControls();
-
-    if (
-        pitchMemory.trial.state === 'responding' ||
-        pitchMemory.trial.availableAt <= Date.now()
-    ) {
-        pitchMemory.trial.state = 'waiting';
-        showPitchMemoryResponse();
-    } else {
-        schedulePitchMemoryResponse();
-    }
 }
 
 // Events
@@ -3004,12 +3069,12 @@ function initializeEvents() {
 
     getAction('start-pitch-memory').addEventListener(
         'click',
-        startPitchMemoryTrial
+        playPitchMemoryStimulus
     );
 
     getAction('stop-pitch-memory').addEventListener(
         'click',
-        cancelPitchMemoryTrial
+        stopPitchMemoryAudio
     );
 
     getAction('new-pitch-memory').addEventListener(
@@ -3108,6 +3173,9 @@ function initializeEvents() {
 // Initialization
 
 function initialize() {
+    pitchMemory.trial = null;
+    storage.remove(PITCH_MEMORY_TRIAL_KEY);
+
     initializeTabs();
     initializeTooltips();
     initializeNotes();
@@ -3127,7 +3195,6 @@ function initialize() {
     renderChordStats();
     updatePitchMemoryControls();
     renderPitchMemoryResponseFrequency();
-    restorePitchMemoryTrial();
 
     initializeEvents();
 }
@@ -3140,6 +3207,11 @@ window.addEventListener('beforeunload', () => {
     cancelPickAdvance();
     cancelChordAdvance();
     clearPitchMemoryTimers();
+
+    if (pitchMemory.replayTimer !== null) {
+        clearTimeout(pitchMemory.replayTimer);
+    }
+
     stopPitchMemoryResponseTone();
 
     if (
