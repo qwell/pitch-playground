@@ -436,7 +436,6 @@
                             "Generated-tone absolute pitch-memory tests",
                             "Interference-resistant pitch-memory tests",
                             "Oscillator and microphone pitch recall",
-                            "Raw trial data CSV export",
                             "Adjustable pitch ranges in cents",
                             "Multiple musical intervals",
                             "Sine and triangle waveforms",
@@ -1346,6 +1345,7 @@
                                     class="link-button"
                                     data-action="clear-placement-stats"
                                     type="button"
+                                    title="Clear pitch-placement statistics"
                                 >
                                     Clear
                                 </button>
@@ -1631,17 +1631,7 @@
                     <div class="practice-report practice-wide-content">
                         <dl class="stats practice-stats">
                             <div class="stats-with-action">
-                                <dt>
-                                    Streak
-                                    <span
-                                        class="info-tip"
-                                        tabindex="0"
-                                        aria-label="Consecutive responses less than 50 cents from the target. Fifty cents is halfway to an adjacent semitone."
-                                        data-tooltip="Consecutive responses less than 50 cents from the target. Fifty cents is halfway to an adjacent semitone."
-                                    >
-                                        ⓘ
-                                    </span>
-                                </dt>
+                                <dt>Streak</dt>
                                 <dd>
                                     <strong data-output="pitch-memory-streak"
                                         >0</strong
@@ -1650,7 +1640,7 @@
                                         class="link-button"
                                         data-action="clear-pitch-memory-stats"
                                         type="button"
-                                        title="Clear all saved pitch-memory results"
+                                        title="Clear pitch-memory statistics"
                                     >
                                         Clear
                                     </button>
@@ -1662,16 +1652,11 @@
                                     --
                                 </dd>
                             </div>
+                            <div>
+                                <dt>Best</dt>
+                                <dd data-output="pitch-memory-best">--</dd>
+                            </div>
                         </dl>
-                        <div class="report-actions">
-                            <button
-                                data-action="export-pitch-memory"
-                                type="button"
-                                title="Download raw pitch-memory trials as CSV"
-                            >
-                                Export CSV
-                            </button>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -1901,6 +1886,7 @@
                                     class="link-button"
                                     data-action="clear-pick-stats"
                                     type="button"
+                                    title="Clear pick-target statistics"
                                 >
                                     Clear
                                 </button>
@@ -1910,6 +1896,10 @@
                         <div>
                             <dt>Mean error</dt>
                             <dd data-output="pick-mean-error">0.0 cents</dd>
+                        </div>
+                        <div>
+                            <dt>Best</dt>
+                            <dd data-output="pick-best">--</dd>
                         </div>
                     </dl>
                 </div>
@@ -2134,6 +2124,7 @@
                                     class="link-button"
                                     data-action="clear-interval-stats"
                                     type="button"
+                                    title="Clear interval statistics"
                                 >
                                     Clear
                                 </button>
@@ -2142,6 +2133,10 @@
                         <div>
                             <dt>Accuracy</dt>
                             <dd data-output="interval-accuracy">0%</dd>
+                        </div>
+                        <div>
+                            <dt>Best</dt>
+                            <dd data-output="interval-best">--</dd>
                         </div>
                     </dl>
                 </div>
@@ -2298,6 +2293,7 @@
                                     class="link-button"
                                     data-action="clear-chord-stats"
                                     type="button"
+                                    title="Clear chord-quality statistics"
                                 >
                                     Clear
                                 </button>
@@ -2307,6 +2303,10 @@
                         <div>
                             <dt>Accuracy</dt>
                             <dd data-output="chord-accuracy">0%</dd>
+                        </div>
+                        <div>
+                            <dt>Best</dt>
+                            <dd data-output="chord-best">--</dd>
                         </div>
                     </dl>
                 </div>

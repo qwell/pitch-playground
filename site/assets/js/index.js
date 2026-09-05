@@ -36,11 +36,14 @@ const METRONOME_METERS = {
     '7/8': [2, 0, 1, 0, 1, 0, 0],
 };
 
-const PICK_STATS_KEY = '440Lab.pickStats.v7';
-const PLACEMENT_STATS_KEY = '440Lab.placementStats.v1';
-const INTERVAL_STATS_KEY = '440Lab.intervalStats.v1';
-const CHORD_STATS_KEY = '440Lab.chordStats.v1';
-const PITCH_MEMORY_RESULTS_KEY = '440Lab.pitchMemoryResults.v1';
+const STATS_KEYS = {
+    placement: '440Lab.placementStats.v1',
+    pick: '440Lab.pickStats.v7',
+    interval: '440Lab.intervalStats.v1',
+    chord: '440Lab.chordStats.v1',
+    pitchMemory: '440Lab.pitchMemoryStats.v1',
+};
+
 const PITCH_MEMORY_TRIAL_KEY = '440Lab.pitchMemoryTrial.v1';
 const PITCH_MEMORY_MIN_HZ = 200;
 const PITCH_MEMORY_MAX_HZ = 900;
@@ -222,12 +225,42 @@ const storage = {
 
     remove(key) {
         try {
-            localStorage.removeItem(key);
+            const suffix = key.slice(key.indexOf('.'));
+
+            for (const candidate of Object.keys(localStorage)) {
+                if (candidate === key || candidate.endsWith(suffix)) {
+                    localStorage.removeItem(candidate);
+                }
+            }
         } catch {
             // Storage is optional.
         }
     },
 };
+
+const stats = {};
+
+function loadStats(name) {
+    return storage.load(STATS_KEYS[name], null);
+}
+
+function saveStats(name) {
+    const moduleStats = stats[name];
+
+    if (Number.isFinite(moduleStats.errorTotal)) {
+        moduleStats.errorTotal = Number(moduleStats.errorTotal.toFixed(3));
+    }
+
+    if (Number.isFinite(moduleStats.best)) {
+        moduleStats.best = Number(moduleStats.best.toFixed(3));
+    }
+
+    storage.save(STATS_KEYS[name], moduleStats);
+}
+
+function clearStats(name) {
+    storage.remove(STATS_KEYS[name]);
+}
 
 function createAutoAdvance(refreshSelector, advance) {
     let timer = null;
@@ -1333,13 +1366,14 @@ function defaultPlacementStats() {
     return {
         streak: 0,
         trials: 0,
+        correct: 0,
         errorTotal: 0,
         best: null,
     };
 }
 
 function loadPlacementStats() {
-    const stored = storage.load(PLACEMENT_STATS_KEY, null);
+    const stored = loadStats('placement');
 
     if (!stored || typeof stored !== 'object') {
         return defaultPlacementStats();
@@ -1348,18 +1382,20 @@ function loadPlacementStats() {
     return {
         streak: Number.isFinite(stored.streak) ? stored.streak : 0,
         trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
         errorTotal: Number.isFinite(stored.errorTotal) ? stored.errorTotal : 0,
         best: Number.isFinite(stored.best) ? stored.best : null,
     };
 }
 
 function savePlacementStats() {
-    storage.save(PLACEMENT_STATS_KEY, placement.stats);
+    saveStats('placement');
 }
+
+stats.placement = loadPlacementStats();
 
 const placement = {
     trial: null,
-    stats: loadPlacementStats(),
     adaptiveResults: [],
 };
 
@@ -1376,7 +1412,7 @@ function schedulePlacementAdvance() {
 }
 
 function renderPlacementStats() {
-    const { streak, trials, errorTotal, best } = placement.stats;
+    const { streak, trials, errorTotal, best } = stats.placement;
 
     const meanError = trials > 0 ? errorTotal / trials : 0;
 
@@ -1390,9 +1426,9 @@ function renderPlacementStats() {
 }
 
 function clearPlacementStats() {
-    placement.stats = defaultPlacementStats();
+    stats.placement = defaultPlacementStats();
 
-    storage.remove(PLACEMENT_STATS_KEY);
+    clearStats('placement');
 
     renderPlacementStats();
 }
@@ -1634,17 +1670,18 @@ function commitPlacement(judgment) {
         correct: direction,
     });
 
-    placement.stats.trials += 1;
+    stats.placement.trials += 1;
+    stats.placement.correct += correct ? 1 : 0;
 
-    placement.stats.errorTotal += correct ? 0 : distance;
+    stats.placement.errorTotal += correct ? 0 : distance;
 
-    placement.stats.streak = correct ? placement.stats.streak + 1 : 0;
+    stats.placement.streak = correct ? stats.placement.streak + 1 : 0;
 
     if (
         correct &&
-        (placement.stats.best === null || distance < placement.stats.best)
+        (stats.placement.best === null || distance < stats.placement.best)
     ) {
-        placement.stats.best = distance;
+        stats.placement.best = distance;
     }
 
     savePlacementStats();
@@ -1666,7 +1703,6 @@ function commitPlacement(judgment) {
 
 const pitchMemory = {
     trial: storage.load(PITCH_MEMORY_TRIAL_KEY, null),
-    results: storage.load(PITCH_MEMORY_RESULTS_KEY, []),
     timer: null,
     countdown: null,
     replayTimer: null,
@@ -1685,14 +1721,8 @@ const pitchMemory = {
     },
 };
 
-if (!Array.isArray(pitchMemory.results)) {
-    pitchMemory.results = [];
-}
-
 function savePitchMemoryState() {
-    storage.save(PITCH_MEMORY_RESULTS_KEY, pitchMemory.results);
-
-    if (pitchMemory.trial) {
+    if (pitchMemory.trial && pitchMemory.trial.state !== 'complete') {
         storage.save(PITCH_MEMORY_TRIAL_KEY, pitchMemory.trial);
     } else {
         storage.remove(PITCH_MEMORY_TRIAL_KEY);
@@ -1920,42 +1950,49 @@ function togglePitchMemoryMic() {
     void startPitchMemoryMic();
 }
 
-function getPitchMemoryCondition() {
-    const test = getControl('pitch-memory-test').value;
-
-    return test === 'novel'
-        ? `${getControl('pitch-memory-delay').value}s delay`
-        : `${getControl('pitch-memory-distractors').value} distractors`;
+function defaultPitchMemoryStats() {
+    return {
+        streak: 0,
+        trials: 0,
+        correct: 0,
+        errorTotal: 0,
+        best: null,
+    };
 }
 
-function resultMatchesCurrentCondition(result) {
-    return (
-        result.test === getControl('pitch-memory-test').value &&
-        result.method === getControl('pitch-memory-response').value &&
-        result.condition === getPitchMemoryCondition()
-    );
-}
+function loadPitchMemoryStats() {
+    const stored = loadStats('pitchMemory');
 
-function renderPitchMemoryReport() {
-    const results = pitchMemory.results.filter(resultMatchesCurrentCondition);
-    const errors = results.map((result) => Math.abs(result.errorCents));
-    const meanError =
-        errors.length > 0
-            ? errors.reduce((total, error) => total + error, 0) / errors.length
-            : null;
-    let streak = 0;
-
-    for (let index = errors.length - 1; index >= 0; index -= 1) {
-        if (errors[index] >= PITCH_MEMORY_CORRECT_CENTS) {
-            break;
-        }
-
-        streak += 1;
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+        return defaultPitchMemoryStats();
     }
 
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+        errorTotal: Number.isFinite(stored.errorTotal) ? stored.errorTotal : 0,
+        best: Number.isFinite(stored.best) ? stored.best : null,
+    };
+}
+
+function savePitchMemoryStats() {
+    saveStats('pitchMemory');
+}
+
+stats.pitchMemory = loadPitchMemoryStats();
+
+function renderPitchMemoryReport() {
+    const { streak, trials, errorTotal, best } = stats.pitchMemory;
+    const meanError = trials > 0 ? errorTotal / trials : null;
+
     getOutput('pitch-memory-streak').textContent = String(streak);
+
     getOutput('pitch-memory-mean-error').textContent =
         meanError === null ? '--' : `${meanError.toFixed(1)} cents`;
+
+    getOutput('pitch-memory-best').textContent =
+        best === null ? '--' : `${best.toFixed(2)} cents`;
 }
 
 function showPitchMemoryResponse() {
@@ -2311,7 +2348,21 @@ function submitPitchMemoryResponse() {
         seed: pitchMemory.trial.seed,
     };
 
-    pitchMemory.results.push(result);
+    const correct = result.absoluteErrorCents < PITCH_MEMORY_CORRECT_CENTS;
+
+    stats.pitchMemory.trials += 1;
+    stats.pitchMemory.correct += correct ? 1 : 0;
+    stats.pitchMemory.errorTotal += result.absoluteErrorCents;
+    stats.pitchMemory.streak = correct ? stats.pitchMemory.streak + 1 : 0;
+
+    if (
+        stats.pitchMemory.best === null ||
+        result.absoluteErrorCents < stats.pitchMemory.best
+    ) {
+        stats.pitchMemory.best = result.absoluteErrorCents;
+    }
+
+    savePitchMemoryStats();
     stopPitchMemoryResponseTone();
     stopPitchMemoryMic();
 
@@ -2351,50 +2402,85 @@ function updatePitchMemoryControls() {
     renderPitchMemoryReport();
 }
 
-function csvCell(value) {
-    const text = String(value);
+function restorePitchMemoryTrial() {
+    const trial = pitchMemory.trial;
 
-    return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
+    if (!trial || !['waiting', 'responding'].includes(trial.state)) {
+        pitchMemory.trial = null;
+        storage.remove(PITCH_MEMORY_TRIAL_KEY);
+        updatePitchMemoryControls();
+        return;
+    }
 
-function exportPitchMemoryResults() {
-    const fields = [
-        'timestamp',
-        'test',
-        'method',
-        'condition',
-        'targetHz',
-        'responseHz',
-        'errorCents',
-        'absoluteErrorCents',
-        'responseTimeMs',
-        'waveform',
-        'seed',
-    ];
-    const rows = [
-        fields.join(','),
-        ...pitchMemory.results.map((result) =>
-            fields.map((field) => csvCell(result[field])).join(',')
-        ),
-    ];
-    const url = URL.createObjectURL(
-        new Blob([`${rows.join('\n')}\n`], { type: 'text/csv;charset=utf-8' })
-    );
-    const link = document.createElement('a');
+    getControl('pitch-memory-test').value = trial.test;
+    getControl('pitch-memory-response').value = trial.method;
 
-    link.href = url;
-    link.download = 'pitch-memory-results.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    const conditionValue = String(Number.parseInt(trial.condition, 10));
+
+    if (trial.test === 'novel') {
+        getControl('pitch-memory-delay').value = conditionValue;
+    } else {
+        getControl('pitch-memory-distractors').value = conditionValue;
+    }
+
+    updatePitchMemoryControls();
+
+    if (trial.state === 'responding') {
+        trial.state = 'waiting';
+        showPitchMemoryResponse();
+        return;
+    }
+
+    if (!trial.stimulusPlayed) {
+        trial.state = 'ready';
+        playPitchMemoryStimulus();
+        return;
+    }
+
+    setPitchMemoryReplayEnabled(!trial.stimulusPlayed);
+    getAction('stop-pitch-memory').disabled = true;
+    schedulePitchMemoryResponse();
 }
 
 function clearPitchMemoryStats() {
-    pitchMemory.results = [];
-    savePitchMemoryState();
+    stats.pitchMemory = defaultPitchMemoryStats();
+    clearStats('pitchMemory');
     renderPitchMemoryReport();
 }
 
 // Pick target
+
+function defaultPickStats() {
+    return {
+        streak: 0,
+        trials: 0,
+        correct: 0,
+        errorTotal: 0,
+        best: null,
+    };
+}
+
+function loadPickStats() {
+    const stored = loadStats('pick');
+
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+        return defaultPickStats();
+    }
+
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+        errorTotal: Number.isFinite(stored.errorTotal) ? stored.errorTotal : 0,
+        best: Number.isFinite(stored.best) ? stored.best : null,
+    };
+}
+
+function savePickStats() {
+    saveStats('pick');
+}
+
+stats.pick = loadPickStats();
 
 const pick = {
     candidates: [],
@@ -2659,73 +2745,23 @@ function playCandidate(index) {
     }
 }
 
-let pickStatsCache = null;
+function renderPickStats() {
+    const { streak, trials, errorTotal, best } = stats.pick;
+    const meanError = trials > 0 ? errorTotal / trials : 0;
 
-function loadPickStats() {
-    if (pickStatsCache !== null) {
-        return pickStatsCache;
-    }
+    getOutput('pick-streak').textContent = String(streak);
 
-    const stats = storage.load(PICK_STATS_KEY, []);
+    getOutput('pick-mean-error').textContent = `${meanError.toFixed(1)} cents`;
 
-    pickStatsCache = Array.isArray(stats) ? stats : [];
-
-    return pickStatsCache;
-}
-
-function savePickStat(errorCents) {
-    const stats = loadPickStats();
-
-    stats.push({
-        dateTime: new Date().toISOString(),
-
-        targetHz: selectedNoteFrequency(getNote('pick')),
-
-        errorCents,
-    });
-
-    if (stats.length > 500) {
-        stats.splice(0, stats.length - 500);
-    }
-
-    storage.save(PICK_STATS_KEY, stats);
+    getOutput('pick-best').textContent = best === null ? '--' : String(best);
 }
 
 function clearPickStats() {
-    loadPickStats().length = 0;
+    stats.pick = defaultPickStats();
 
-    storage.remove(PICK_STATS_KEY);
+    clearStats('pick');
 
     renderPickStats();
-}
-
-function currentPickStreak(stats) {
-    let streak = 0;
-
-    for (let index = stats.length - 1; index >= 0; index -= 1) {
-        if (Math.abs(Number(stats[index].errorCents)) >= 0.000001) {
-            break;
-        }
-
-        streak += 1;
-    }
-
-    return streak;
-}
-
-function renderPickStats() {
-    const stats = loadPickStats();
-
-    const errorTotal = stats.reduce(
-        (total, stat) => total + Math.abs(Number(stat.errorCents)),
-        0
-    );
-
-    const meanError = stats.length > 0 ? errorTotal / stats.length : 0;
-
-    getOutput('pick-streak').textContent = String(currentPickStreak(stats));
-
-    getOutput('pick-mean-error').textContent = `${meanError.toFixed(1)} cents`;
 }
 
 function commitPick(index) {
@@ -2746,11 +2782,28 @@ function commitPick(index) {
     pick.committed = true;
     pick.selectedIndex = index;
 
-    savePickStat(centsBetween(selected.frequencyHz, target.frequencyHz));
+    const correct = selected.isTarget;
+    const errorCents = Math.abs(
+        centsBetween(selected.frequencyHz, target.frequencyHz)
+    );
+
+    stats.pick.trials += 1;
+    stats.pick.correct += correct ? 1 : 0;
+    stats.pick.errorTotal += errorCents;
+    stats.pick.streak = correct ? stats.pick.streak + 1 : 0;
+
+    if (
+        correct &&
+        (stats.pick.best === null || stats.pick.streak > stats.pick.best)
+    ) {
+        stats.pick.best = stats.pick.streak;
+    }
+
+    savePickStats();
 
     renderCandidates();
     renderPickStats();
-    updateAdaptiveDifficulty('pick', selected.isTarget);
+    updateAdaptiveDifficulty('pick', correct);
 
     const targetIndex = pick.candidates.indexOf(target);
     const status = getOutput('pick-status');
@@ -2773,11 +2826,12 @@ function defaultIntervalStats() {
         streak: 0,
         trials: 0,
         correct: 0,
+        best: null,
     };
 }
 
 function loadIntervalStats() {
-    const stored = storage.load(INTERVAL_STATS_KEY, null);
+    const stored = loadStats('interval');
 
     if (!stored || typeof stored !== 'object') {
         return defaultIntervalStats();
@@ -2787,12 +2841,18 @@ function loadIntervalStats() {
         streak: Number.isFinite(stored.streak) ? stored.streak : 0,
         trials: Number.isFinite(stored.trials) ? stored.trials : 0,
         correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+        best: Number.isFinite(stored.best) ? stored.best : null,
     };
 }
 
+function saveIntervalStats() {
+    saveStats('interval');
+}
+
+stats.interval = loadIntervalStats();
+
 const interval = {
     trial: null,
-    stats: loadIntervalStats(),
 };
 
 const intervalAdvance = createAutoAdvance('.interval-refresh', () => {
@@ -2920,16 +2980,20 @@ function playIntervalTrial() {
 }
 
 function renderIntervalStats() {
-    const { streak, trials, correct } = interval.stats;
-    const accuracy = trials > 0 ? (correct / trials) * 100 : 0;
+    const { streak, trials, correct, best } = stats.interval;
 
+    const accuracy = trials > 0 ? (correct / trials) * 100 : 0;
     getOutput('interval-streak').textContent = String(streak);
+
     getOutput('interval-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+
+    getOutput('interval-best').textContent =
+        best === null ? '--' : String(best);
 }
 
 function clearIntervalStats() {
-    interval.stats = defaultIntervalStats();
-    storage.remove(INTERVAL_STATS_KEY);
+    stats.interval = defaultIntervalStats();
+    clearStats('interval');
     renderIntervalStats();
 }
 
@@ -2948,11 +3012,19 @@ function commitInterval(semitones) {
         (candidate) => candidate.semitones === trial.semitones
     );
 
-    interval.stats.trials += 1;
-    interval.stats.correct += correct ? 1 : 0;
-    interval.stats.streak = correct ? interval.stats.streak + 1 : 0;
+    stats.interval.trials += 1;
+    stats.interval.correct += correct ? 1 : 0;
+    stats.interval.streak = correct ? stats.interval.streak + 1 : 0;
 
-    storage.save(INTERVAL_STATS_KEY, interval.stats);
+    if (
+        correct &&
+        (stats.interval.best === null ||
+            stats.interval.streak > stats.interval.best)
+    ) {
+        stats.interval.best = stats.interval.streak;
+    }
+
+    saveIntervalStats();
     renderIntervalStats();
     renderIntervalAnswers(semitones, true);
     renderPracticeResult('interval-result', correct, correctInterval.name);
@@ -2975,11 +3047,12 @@ function defaultChordStats() {
         streak: 0,
         trials: 0,
         correct: 0,
+        best: null,
     };
 }
 
 function loadChordStats() {
-    const stored = storage.load(CHORD_STATS_KEY, null);
+    const stored = loadStats('chord');
 
     if (!stored || typeof stored !== 'object') {
         return defaultChordStats();
@@ -2989,14 +3062,20 @@ function loadChordStats() {
         streak: Number.isFinite(stored.streak) ? stored.streak : 0,
         trials: Number.isFinite(stored.trials) ? stored.trials : 0,
         correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+        best: Number.isFinite(stored.best) ? stored.best : null,
     };
 }
+
+function saveChordStats() {
+    saveStats('chord');
+}
+
+stats.chord = loadChordStats();
 
 const chord = {
     quality: null,
     committed: false,
     playedNotes: [],
-    stats: loadChordStats(),
 };
 
 const chordAdvance = createAutoAdvance('.chord-refresh', () => {
@@ -3094,24 +3173,22 @@ function playChordTrial() {
     }
 }
 
-function saveChordStats() {
-    storage.save(CHORD_STATS_KEY, chord.stats);
-}
-
 function renderChordStats() {
-    const accuracy =
-        chord.stats.trials > 0
-            ? (chord.stats.correct / chord.stats.trials) * 100
-            : 0;
+    const { streak, trials, correct, best } = stats.chord;
 
-    getOutput('chord-streak').textContent = String(chord.stats.streak);
+    const accuracy = trials > 0 ? (correct / trials) * 100 : 0;
+
+    getOutput('chord-streak').textContent = String(streak);
+
     getOutput('chord-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+
+    getOutput('chord-best').textContent = best === null ? '--' : String(best);
 }
 
 function clearChordStats() {
-    chord.stats = defaultChordStats();
+    stats.chord = defaultChordStats();
 
-    storage.remove(CHORD_STATS_KEY);
+    clearStats('chord');
 
     renderChordStats();
 }
@@ -3126,9 +3203,16 @@ function commitChord(quality) {
 
     const correct = quality === chord.quality;
 
-    chord.stats.trials += 1;
-    chord.stats.correct += correct ? 1 : 0;
-    chord.stats.streak = correct ? chord.stats.streak + 1 : 0;
+    stats.chord.trials += 1;
+    stats.chord.correct += correct ? 1 : 0;
+    stats.chord.streak = correct ? stats.chord.streak + 1 : 0;
+
+    if (
+        correct &&
+        (stats.chord.best === null || stats.chord.streak > stats.chord.best)
+    ) {
+        stats.chord.best = stats.chord.streak;
+    }
 
     saveChordStats();
     renderChordStats();
@@ -3368,11 +3452,6 @@ function initializeEvents() {
         button.addEventListener('click', submitPitchMemoryResponse);
     }
 
-    getAction('export-pitch-memory').addEventListener(
-        'click',
-        exportPitchMemoryResults
-    );
-
     getAction('clear-pitch-memory-stats').addEventListener(
         'click',
         clearPitchMemoryStats
@@ -3441,9 +3520,6 @@ function initializeEvents() {
 // Initialization
 
 function initialize() {
-    pitchMemory.trial = null;
-    storage.remove(PITCH_MEMORY_TRIAL_KEY);
-
     initializeTabs();
     initializeTooltips();
     initializeNotes();
@@ -3463,7 +3539,7 @@ function initialize() {
     renderPickStats();
     renderIntervalStats();
     renderChordStats();
-    updatePitchMemoryControls();
+    restorePitchMemoryTrial();
     renderPitchMemoryResponseFrequency();
 
     initializeEvents();
@@ -3485,12 +3561,5 @@ window.addEventListener('beforeunload', () => {
 
     stopPitchMemoryResponseTone();
 
-    if (
-        pitchMemory.trial?.state === 'waiting' &&
-        (pitchMemory.trial.test === 'interference' ||
-            Date.now() < pitchMemory.trial.encodingEndsAt)
-    ) {
-        pitchMemory.trial = null;
-        savePitchMemoryState();
-    }
+    savePitchMemoryState();
 });

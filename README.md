@@ -30,7 +30,7 @@ Live demo: [https://440lab.com/](https://440lab.com/)
 - Test pitch memory after a delay or interfering tones
     - Respond with an adjustable oscillator or microphone input
     - Compare the target and response on a continuous frequency slider
-    - Track streak and mean error, with optional raw-result CSV export
+    - Track streak, mean error, and best result
 - Adjustable waveform, duration, interval, range, and candidate count
 - Streak and error statistics for ear-training exercises
 - Direct links to individual tools using URL fragments

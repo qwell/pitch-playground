@@ -619,18 +619,6 @@ main {
     margin-top: var(--stats-spacing);
 }
 
-.report-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    margin-top: var(--stats-spacing);
-}
-
-.report-actions button:first-child {
-    padding-inline: 12px;
-}
-
 .practice > .action-button-grid {
     grid-area: actions;
 }
