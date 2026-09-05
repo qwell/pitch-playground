@@ -3011,21 +3011,8 @@ function scheduleChordAdvance() {
     chordAdvance.schedule();
 }
 
-function enabledChordQualities() {
-    return [...document.querySelectorAll('[data-chord-quality]')]
-        .filter((button) => button.getAttribute('aria-pressed') === 'true')
-        .map((button) => button.dataset.chordQuality);
-}
-
-function changeChordQuality(button) {
-    const selected = button.getAttribute('aria-pressed') === 'true';
-
-    button.setAttribute('aria-pressed', String(!selected));
-    newChordTrial();
-}
-
 function renderChordAnswers(selected = null, answersEnabled = false) {
-    const buttons = enabledChordQualities().map((quality) => {
+    const buttons = Object.keys(CHORD_QUALITIES).map((quality) => {
         const button = document.createElement('button');
 
         button.type = 'button';
@@ -3058,12 +3045,9 @@ function newChordTrial(playImmediately = false) {
     cancelChordAdvance();
     stopAllAudio();
 
-    const qualities = enabledChordQualities();
+    const qualities = Object.keys(CHORD_QUALITIES);
 
-    chord.quality =
-        qualities.length > 0
-            ? qualities[Math.floor(Math.random() * qualities.length)]
-            : null;
+    chord.quality = qualities[Math.floor(Math.random() * qualities.length)];
     chord.committed = false;
     chord.playedNotes = [];
 
@@ -3325,16 +3309,6 @@ function initializeEvents() {
 
             if (button) {
                 commitChord(button.dataset.chordAnswer);
-            }
-        });
-
-    document
-        .querySelector('.quality-toggles')
-        .addEventListener('click', (event) => {
-            const button = event.target.closest('[data-chord-quality]');
-
-            if (button) {
-                changeChordQuality(button);
             }
         });
 

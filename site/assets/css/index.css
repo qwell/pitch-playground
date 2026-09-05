@@ -342,40 +342,6 @@ main {
     max-width: 100%;
 }
 
-.quality-toggles {
-    width: var(--control-width);
-    max-width: 100%;
-
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.quality-toggles button {
-    min-width: 0;
-    padding: 0;
-
-    border-radius: 0;
-
-    font-size: 12px;
-}
-
-.quality-toggles button:first-child {
-    border-radius: 4px 0 0 4px;
-}
-
-.quality-toggles button:last-child {
-    border-radius: 0 4px 4px 0;
-}
-
-.quality-toggles button + button {
-    border-left: 0;
-}
-
-.quality-toggles button[aria-pressed='true'] {
-    background: #3d526e;
-    color: #d9e8ff;
-}
-
 .range-controls {
     width: var(--control-width);
     max-width: 100%;
