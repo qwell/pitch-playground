@@ -1083,6 +1083,24 @@ main {
     }
 }
 
+/* Pitch memory */
+
+.pitch-memory-detected-frequency {
+    min-height: 32px;
+    margin-bottom: 6px;
+
+    line-height: 32px;
+}
+
+.pitch-memory-result {
+    min-height: 20px;
+    margin-top: 8px;
+}
+
+.pitch-memory-result:empty {
+    display: none;
+}
+
 /* Pick target */
 
 .pick-target-candidate-list {
@@ -1189,24 +1207,6 @@ main {
     margin-top: 4px;
 
     color: var(--text);
-}
-
-/* Pitch memory */
-
-.pitch-memory-detected-frequency {
-    min-height: 32px;
-    margin-bottom: 6px;
-
-    line-height: 32px;
-}
-
-.pitch-memory-result {
-    min-height: 20px;
-    margin-top: 8px;
-}
-
-.pitch-memory-result:empty {
-    display: none;
 }
 
 /* Footer */

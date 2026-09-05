@@ -1638,577 +1638,6 @@ function commitPlacement(judgment) {
     schedulePlacementAdvance();
 }
 
-// Pick target
-
-const pick = {
-    candidates: [],
-    committed: false,
-    selectedIndex: null,
-    adaptiveResults: [],
-};
-
-const pickAdvance = createAutoAdvance('.pick-refresh', newPickSet);
-
-function cancelPickAdvance() {
-    pickAdvance.cancel();
-}
-
-function schedulePickAdvance() {
-    pickAdvance.schedule();
-}
-
-function shuffle(items) {
-    const result = [...items];
-
-    for (let index = result.length - 1; index > 0; index -= 1) {
-        const swapIndex = Math.floor(Math.random() * (index + 1));
-
-        [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-    }
-
-    return result;
-}
-
-function spreadMagnitudes(count, minimum, maximum) {
-    if (count === 0) {
-        return [];
-    }
-
-    if (count === 1) {
-        return [minimum + Math.random() * (maximum - minimum)];
-    }
-
-    const bandSize = (maximum - minimum) / count;
-
-    return Array.from({ length: count }, (_, index) => {
-        const lower = minimum + bandSize * index;
-
-        const upper =
-            index === count - 1 ? maximum : minimum + bandSize * (index + 1);
-
-        return lower + Math.random() * (upper - lower);
-    });
-}
-
-function candidateOffsets(count, minimum, maximum) {
-    const nonTargetCount = count - 1;
-
-    let negativeCount = Math.floor(nonTargetCount / 2);
-
-    let positiveCount = nonTargetCount - negativeCount;
-
-    /*
-     * When there's an odd number of
-     * non-target candidates, randomly
-     * choose which side gets the extra.
-     */
-    if (Math.random() < 0.5) {
-        [negativeCount, positiveCount] = [positiveCount, negativeCount];
-    }
-
-    const negativeOffsets = spreadMagnitudes(
-        negativeCount,
-        minimum,
-        maximum
-    ).map((magnitude) => -magnitude);
-
-    const positiveOffsets = spreadMagnitudes(positiveCount, minimum, maximum);
-
-    return [0, ...negativeOffsets, ...positiveOffsets];
-}
-
-function newPickSet() {
-    cancelPickAdvance();
-    stopAllAudio();
-
-    const targetHz = selectedNoteFrequency(getNote('pick'));
-
-    const { minimum: minimumCents, maximum: maximumCents } = readRange(
-        getControl('pick-range-min'),
-        getControl('pick-range-max'),
-        10,
-        50
-    );
-
-    const count = Math.round(readNumber(getControl('pick-count'), 7));
-
-    pick.candidates = shuffle(
-        candidateOffsets(count, minimumCents, maximumCents).map((cents) => ({
-            cents,
-
-            frequencyHz: frequencyFromCents(targetHz, cents),
-
-            isTarget: Math.abs(cents) < 0.000001,
-
-            played: false,
-        }))
-    );
-
-    pick.committed = false;
-    pick.selectedIndex = null;
-
-    getOutput('pick-status').textContent = '';
-
-    renderCandidates();
-}
-
-function getCandidateResult(candidate, index) {
-    if (!pick.committed) {
-        return null;
-    }
-
-    if (candidate.isTarget && index === pick.selectedIndex) {
-        return {
-            icon: '✓',
-            className: 'is-correct',
-        };
-    }
-
-    if (index === pick.selectedIndex) {
-        return {
-            icon: '✕',
-            className: 'is-incorrect',
-        };
-    }
-
-    if (candidate.isTarget) {
-        return {
-            icon: '◎',
-            className: 'is-target',
-        };
-    }
-
-    return {
-        icon: '',
-        className: '',
-    };
-}
-
-function createCandidateRow(candidate, index) {
-    const row = document.createElement('div');
-
-    row.className = 'pick-target-candidate-row';
-
-    row.dataset.index = String(index);
-
-    const actions = document.createElement('div');
-
-    actions.className = 'pick-target-candidate-actions';
-
-    const playButton = document.createElement('button');
-
-    playButton.type = 'button';
-
-    playButton.className = 'icon-button pick-target-candidate-play';
-
-    playButton.dataset.action = 'play-candidate';
-
-    playButton.setAttribute('aria-label', `Play candidate ${index + 1}`);
-
-    playButton.title = `Play candidate ${index + 1}`;
-
-    playButton.textContent = '▶';
-
-    const chooseButton = document.createElement('button');
-
-    chooseButton.type = 'button';
-
-    chooseButton.className = 'pick-target-candidate-choose';
-
-    chooseButton.dataset.action = 'choose-candidate';
-
-    chooseButton.textContent = `Choose #${index + 1}`;
-
-    chooseButton.disabled = pick.committed || !candidate.played;
-
-    actions.append(playButton, chooseButton);
-
-    row.append(actions);
-
-    const result = getCandidateResult(candidate, index);
-
-    if (!result) {
-        return row;
-    }
-
-    if (result.className) {
-        row.classList.add(result.className);
-    }
-
-    const details = document.createElement('span');
-
-    details.className = 'pick-target-candidate-details';
-
-    if (result.icon) {
-        const icon = document.createElement('span');
-
-        icon.className = 'pick-target-candidate-result-icon';
-
-        icon.textContent = result.icon;
-
-        details.append(icon);
-    }
-
-    details.append(
-        document.createTextNode(
-            `${candidate.frequencyHz.toFixed(3)} Hz, ` +
-                `${signed(candidate.cents, 2)} cents`
-        )
-    );
-
-    row.append(details);
-
-    return row;
-}
-
-function renderCandidates() {
-    const rows = pick.candidates.map(createCandidateRow);
-
-    document
-        .querySelector('.pick-target-candidate-list')
-        .replaceChildren(...rows);
-}
-
-function playCandidate(index) {
-    const candidate = pick.candidates[index];
-
-    if (!candidate) {
-        return;
-    }
-
-    stopAllAudio();
-
-    candidate.played = true;
-
-    audio.playTransient(
-        candidate.frequencyHz,
-
-        getWaveform('pick').value,
-
-        readNumber(getControl('pick-duration'), 1)
-    );
-
-    if (pick.committed) {
-        return;
-    }
-
-    const row = document.querySelector(
-        `.pick-target-candidate-row[data-index="${index}"]`
-    );
-
-    const chooseButton = row ? getAction('choose-candidate', row) : null;
-
-    if (chooseButton) {
-        chooseButton.disabled = false;
-    }
-}
-
-let pickStatsCache = null;
-
-function loadPickStats() {
-    if (pickStatsCache !== null) {
-        return pickStatsCache;
-    }
-
-    const stats = storage.load(PICK_STATS_KEY, []);
-
-    pickStatsCache = Array.isArray(stats) ? stats : [];
-
-    return pickStatsCache;
-}
-
-function savePickStat(errorCents) {
-    const stats = loadPickStats();
-
-    stats.push({
-        dateTime: new Date().toISOString(),
-
-        targetHz: selectedNoteFrequency(getNote('pick')),
-
-        errorCents,
-    });
-
-    if (stats.length > 500) {
-        stats.splice(0, stats.length - 500);
-    }
-
-    storage.save(PICK_STATS_KEY, stats);
-}
-
-function clearPickStats() {
-    loadPickStats().length = 0;
-
-    storage.remove(PICK_STATS_KEY);
-
-    renderPickStats();
-}
-
-function currentPickStreak(stats) {
-    let streak = 0;
-
-    for (let index = stats.length - 1; index >= 0; index -= 1) {
-        if (Math.abs(Number(stats[index].errorCents)) >= 0.000001) {
-            break;
-        }
-
-        streak += 1;
-    }
-
-    return streak;
-}
-
-function renderPickStats() {
-    const stats = loadPickStats();
-
-    const errorTotal = stats.reduce(
-        (total, stat) => total + Math.abs(Number(stat.errorCents)),
-        0
-    );
-
-    const meanError = stats.length > 0 ? errorTotal / stats.length : 0;
-
-    getOutput('pick-streak').textContent = String(currentPickStreak(stats));
-
-    getOutput('pick-mean-error').textContent = `${meanError.toFixed(1)} cents`;
-}
-
-function commitPick(index) {
-    if (pick.committed) {
-        return;
-    }
-
-    const selected = pick.candidates[index];
-
-    const target = pick.candidates.find((candidate) => candidate.isTarget);
-
-    if (!selected || !target) {
-        return;
-    }
-
-    audio.stopTransient();
-
-    pick.committed = true;
-    pick.selectedIndex = index;
-
-    savePickStat(centsBetween(selected.frequencyHz, target.frequencyHz));
-
-    renderCandidates();
-    renderPickStats();
-    updateAdaptiveDifficulty('pick', selected.isTarget);
-
-    const targetIndex = pick.candidates.indexOf(target);
-    const status = getOutput('pick-status');
-    const newPickButton = getAction('new-pick');
-
-    newPickButton?.focus();
-
-    status.textContent = selected.isTarget
-        ? `Correct. Candidate ${index + 1} matched the target.`
-        : `Incorrect. Candidate ${index + 1} selected; ` +
-          `candidate ${targetIndex + 1} was the target.`;
-
-    schedulePickAdvance();
-}
-
-// Chord quality
-
-function defaultChordStats() {
-    return {
-        streak: 0,
-        trials: 0,
-        correct: 0,
-    };
-}
-
-function loadChordStats() {
-    const stored = storage.load(CHORD_STATS_KEY, null);
-
-    if (!stored || typeof stored !== 'object') {
-        return defaultChordStats();
-    }
-
-    return {
-        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
-        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
-        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
-    };
-}
-
-const chord = {
-    quality: null,
-    committed: false,
-    playedNotes: [],
-    stats: loadChordStats(),
-};
-
-const chordAdvance = createAutoAdvance('.chord-refresh', () => {
-    newChordTrial(true);
-});
-
-function cancelChordAdvance() {
-    chordAdvance.cancel();
-}
-
-function scheduleChordAdvance() {
-    chordAdvance.schedule();
-}
-
-function enabledChordQualities() {
-    return [...document.querySelectorAll('[data-chord-quality]')]
-        .filter((button) => button.getAttribute('aria-pressed') === 'true')
-        .map((button) => button.dataset.chordQuality);
-}
-
-function changeChordQuality(button) {
-    const selected = button.getAttribute('aria-pressed') === 'true';
-
-    button.setAttribute('aria-pressed', String(!selected));
-    newChordTrial();
-}
-
-function renderChordAnswers(selected = null, answersEnabled = false) {
-    const buttons = enabledChordQualities().map((quality) => {
-        const button = document.createElement('button');
-
-        button.type = 'button';
-        button.className = 'answer-option';
-        button.dataset.chordAnswer = quality;
-        button.textContent = quality[0].toUpperCase() + quality.slice(1);
-        button.disabled = chord.committed || !answersEnabled;
-
-        if (selected !== null) {
-            if (quality === chord.quality) {
-                button.classList.add(
-                    quality === selected ? 'is-correct' : 'is-target'
-                );
-            } else if (quality === selected) {
-                button.classList.add('is-incorrect');
-            }
-        }
-
-        return button;
-    });
-
-    document.querySelector('[data-chord-answers]').replaceChildren(...buttons);
-}
-
-function clearChordResult() {
-    clearPracticeResult('chord-result');
-}
-
-function newChordTrial(playImmediately = false) {
-    cancelChordAdvance();
-    stopAllAudio();
-
-    const qualities = enabledChordQualities();
-
-    chord.quality =
-        qualities.length > 0
-            ? qualities[Math.floor(Math.random() * qualities.length)]
-            : null;
-    chord.committed = false;
-    chord.playedNotes = [];
-
-    clearChordResult();
-    renderChordAnswers();
-
-    if (playImmediately) {
-        playChordTrial();
-    }
-}
-
-function playChordTrial() {
-    if (!chord.quality) {
-        newChordTrial();
-
-        if (!chord.quality) {
-            return;
-        }
-    }
-
-    stopAllAudio();
-
-    const rootMidi = Number(getNote('chords').value);
-    const rootHz = midiFrequency(rootMidi);
-    const waveform = getWaveform('chords').value;
-    const ascending = getControl('chord-playback').value === 'ascending';
-
-    chord.playedNotes = CHORD_QUALITIES[chord.quality].map(
-        (semitones) => rootMidi + semitones
-    );
-
-    CHORD_QUALITIES[chord.quality].forEach((semitones, index) => {
-        audio.playTransient(
-            rootHz * 2 ** (semitones / 12),
-            waveform,
-            ascending ? 0.7 : 1.2,
-            0.55,
-            ascending ? index * 0.35 : 0
-        );
-    });
-
-    if (!chord.committed) {
-        renderChordAnswers(null, true);
-    }
-}
-
-function saveChordStats() {
-    storage.save(CHORD_STATS_KEY, chord.stats);
-}
-
-function renderChordStats() {
-    const accuracy =
-        chord.stats.trials > 0
-            ? (chord.stats.correct / chord.stats.trials) * 100
-            : 0;
-
-    getOutput('chord-streak').textContent = String(chord.stats.streak);
-    getOutput('chord-accuracy').textContent = `${accuracy.toFixed(0)}%`;
-}
-
-function clearChordStats() {
-    chord.stats = defaultChordStats();
-
-    storage.remove(CHORD_STATS_KEY);
-
-    renderChordStats();
-}
-
-function commitChord(quality) {
-    if (chord.committed || !CHORD_QUALITIES[quality]) {
-        return;
-    }
-
-    audio.stopTransient();
-    chord.committed = true;
-
-    const correct = quality === chord.quality;
-
-    chord.stats.trials += 1;
-    chord.stats.correct += correct ? 1 : 0;
-    chord.stats.streak = correct ? chord.stats.streak + 1 : 0;
-
-    saveChordStats();
-    renderChordStats();
-    renderChordAnswers(quality, true);
-
-    renderPracticeResult(
-        'chord-result',
-        correct,
-        `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
-    );
-
-    const playedNotes = document.createElement('div');
-
-    playedNotes.className = 'chord-played-notes';
-    playedNotes.textContent = `Notes: ${chord.playedNotes
-        .map(midiToNoteName)
-        .join(', ')}`;
-    getOutput('chord-result').append(playedNotes);
-
-    scheduleChordAdvance();
-}
-
 // Pitch memory
 
 const pitchMemory = {
@@ -2939,6 +2368,577 @@ function clearPitchMemoryStats() {
     pitchMemory.results = [];
     savePitchMemoryState();
     renderPitchMemoryReport();
+}
+
+// Pick target
+
+const pick = {
+    candidates: [],
+    committed: false,
+    selectedIndex: null,
+    adaptiveResults: [],
+};
+
+const pickAdvance = createAutoAdvance('.pick-refresh', newPickSet);
+
+function cancelPickAdvance() {
+    pickAdvance.cancel();
+}
+
+function schedulePickAdvance() {
+    pickAdvance.schedule();
+}
+
+function shuffle(items) {
+    const result = [...items];
+
+    for (let index = result.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+
+        [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
+
+    return result;
+}
+
+function spreadMagnitudes(count, minimum, maximum) {
+    if (count === 0) {
+        return [];
+    }
+
+    if (count === 1) {
+        return [minimum + Math.random() * (maximum - minimum)];
+    }
+
+    const bandSize = (maximum - minimum) / count;
+
+    return Array.from({ length: count }, (_, index) => {
+        const lower = minimum + bandSize * index;
+
+        const upper =
+            index === count - 1 ? maximum : minimum + bandSize * (index + 1);
+
+        return lower + Math.random() * (upper - lower);
+    });
+}
+
+function candidateOffsets(count, minimum, maximum) {
+    const nonTargetCount = count - 1;
+
+    let negativeCount = Math.floor(nonTargetCount / 2);
+
+    let positiveCount = nonTargetCount - negativeCount;
+
+    /*
+     * When there's an odd number of
+     * non-target candidates, randomly
+     * choose which side gets the extra.
+     */
+    if (Math.random() < 0.5) {
+        [negativeCount, positiveCount] = [positiveCount, negativeCount];
+    }
+
+    const negativeOffsets = spreadMagnitudes(
+        negativeCount,
+        minimum,
+        maximum
+    ).map((magnitude) => -magnitude);
+
+    const positiveOffsets = spreadMagnitudes(positiveCount, minimum, maximum);
+
+    return [0, ...negativeOffsets, ...positiveOffsets];
+}
+
+function newPickSet() {
+    cancelPickAdvance();
+    stopAllAudio();
+
+    const targetHz = selectedNoteFrequency(getNote('pick'));
+
+    const { minimum: minimumCents, maximum: maximumCents } = readRange(
+        getControl('pick-range-min'),
+        getControl('pick-range-max'),
+        10,
+        50
+    );
+
+    const count = Math.round(readNumber(getControl('pick-count'), 7));
+
+    pick.candidates = shuffle(
+        candidateOffsets(count, minimumCents, maximumCents).map((cents) => ({
+            cents,
+
+            frequencyHz: frequencyFromCents(targetHz, cents),
+
+            isTarget: Math.abs(cents) < 0.000001,
+
+            played: false,
+        }))
+    );
+
+    pick.committed = false;
+    pick.selectedIndex = null;
+
+    getOutput('pick-status').textContent = '';
+
+    renderCandidates();
+}
+
+function getCandidateResult(candidate, index) {
+    if (!pick.committed) {
+        return null;
+    }
+
+    if (candidate.isTarget && index === pick.selectedIndex) {
+        return {
+            icon: '✓',
+            className: 'is-correct',
+        };
+    }
+
+    if (index === pick.selectedIndex) {
+        return {
+            icon: '✕',
+            className: 'is-incorrect',
+        };
+    }
+
+    if (candidate.isTarget) {
+        return {
+            icon: '◎',
+            className: 'is-target',
+        };
+    }
+
+    return {
+        icon: '',
+        className: '',
+    };
+}
+
+function createCandidateRow(candidate, index) {
+    const row = document.createElement('div');
+
+    row.className = 'pick-target-candidate-row';
+
+    row.dataset.index = String(index);
+
+    const actions = document.createElement('div');
+
+    actions.className = 'pick-target-candidate-actions';
+
+    const playButton = document.createElement('button');
+
+    playButton.type = 'button';
+
+    playButton.className = 'icon-button pick-target-candidate-play';
+
+    playButton.dataset.action = 'play-candidate';
+
+    playButton.setAttribute('aria-label', `Play candidate ${index + 1}`);
+
+    playButton.title = `Play candidate ${index + 1}`;
+
+    playButton.textContent = '▶';
+
+    const chooseButton = document.createElement('button');
+
+    chooseButton.type = 'button';
+
+    chooseButton.className = 'pick-target-candidate-choose';
+
+    chooseButton.dataset.action = 'choose-candidate';
+
+    chooseButton.textContent = `Choose #${index + 1}`;
+
+    chooseButton.disabled = pick.committed || !candidate.played;
+
+    actions.append(playButton, chooseButton);
+
+    row.append(actions);
+
+    const result = getCandidateResult(candidate, index);
+
+    if (!result) {
+        return row;
+    }
+
+    if (result.className) {
+        row.classList.add(result.className);
+    }
+
+    const details = document.createElement('span');
+
+    details.className = 'pick-target-candidate-details';
+
+    if (result.icon) {
+        const icon = document.createElement('span');
+
+        icon.className = 'pick-target-candidate-result-icon';
+
+        icon.textContent = result.icon;
+
+        details.append(icon);
+    }
+
+    details.append(
+        document.createTextNode(
+            `${candidate.frequencyHz.toFixed(3)} Hz, ` +
+                `${signed(candidate.cents, 2)} cents`
+        )
+    );
+
+    row.append(details);
+
+    return row;
+}
+
+function renderCandidates() {
+    const rows = pick.candidates.map(createCandidateRow);
+
+    document
+        .querySelector('.pick-target-candidate-list')
+        .replaceChildren(...rows);
+}
+
+function playCandidate(index) {
+    const candidate = pick.candidates[index];
+
+    if (!candidate) {
+        return;
+    }
+
+    stopAllAudio();
+
+    candidate.played = true;
+
+    audio.playTransient(
+        candidate.frequencyHz,
+
+        getWaveform('pick').value,
+
+        readNumber(getControl('pick-duration'), 1)
+    );
+
+    if (pick.committed) {
+        return;
+    }
+
+    const row = document.querySelector(
+        `.pick-target-candidate-row[data-index="${index}"]`
+    );
+
+    const chooseButton = row ? getAction('choose-candidate', row) : null;
+
+    if (chooseButton) {
+        chooseButton.disabled = false;
+    }
+}
+
+let pickStatsCache = null;
+
+function loadPickStats() {
+    if (pickStatsCache !== null) {
+        return pickStatsCache;
+    }
+
+    const stats = storage.load(PICK_STATS_KEY, []);
+
+    pickStatsCache = Array.isArray(stats) ? stats : [];
+
+    return pickStatsCache;
+}
+
+function savePickStat(errorCents) {
+    const stats = loadPickStats();
+
+    stats.push({
+        dateTime: new Date().toISOString(),
+
+        targetHz: selectedNoteFrequency(getNote('pick')),
+
+        errorCents,
+    });
+
+    if (stats.length > 500) {
+        stats.splice(0, stats.length - 500);
+    }
+
+    storage.save(PICK_STATS_KEY, stats);
+}
+
+function clearPickStats() {
+    loadPickStats().length = 0;
+
+    storage.remove(PICK_STATS_KEY);
+
+    renderPickStats();
+}
+
+function currentPickStreak(stats) {
+    let streak = 0;
+
+    for (let index = stats.length - 1; index >= 0; index -= 1) {
+        if (Math.abs(Number(stats[index].errorCents)) >= 0.000001) {
+            break;
+        }
+
+        streak += 1;
+    }
+
+    return streak;
+}
+
+function renderPickStats() {
+    const stats = loadPickStats();
+
+    const errorTotal = stats.reduce(
+        (total, stat) => total + Math.abs(Number(stat.errorCents)),
+        0
+    );
+
+    const meanError = stats.length > 0 ? errorTotal / stats.length : 0;
+
+    getOutput('pick-streak').textContent = String(currentPickStreak(stats));
+
+    getOutput('pick-mean-error').textContent = `${meanError.toFixed(1)} cents`;
+}
+
+function commitPick(index) {
+    if (pick.committed) {
+        return;
+    }
+
+    const selected = pick.candidates[index];
+
+    const target = pick.candidates.find((candidate) => candidate.isTarget);
+
+    if (!selected || !target) {
+        return;
+    }
+
+    audio.stopTransient();
+
+    pick.committed = true;
+    pick.selectedIndex = index;
+
+    savePickStat(centsBetween(selected.frequencyHz, target.frequencyHz));
+
+    renderCandidates();
+    renderPickStats();
+    updateAdaptiveDifficulty('pick', selected.isTarget);
+
+    const targetIndex = pick.candidates.indexOf(target);
+    const status = getOutput('pick-status');
+    const newPickButton = getAction('new-pick');
+
+    newPickButton?.focus();
+
+    status.textContent = selected.isTarget
+        ? `Correct. Candidate ${index + 1} matched the target.`
+        : `Incorrect. Candidate ${index + 1} selected; ` +
+          `candidate ${targetIndex + 1} was the target.`;
+
+    schedulePickAdvance();
+}
+
+// Chord quality
+
+function defaultChordStats() {
+    return {
+        streak: 0,
+        trials: 0,
+        correct: 0,
+    };
+}
+
+function loadChordStats() {
+    const stored = storage.load(CHORD_STATS_KEY, null);
+
+    if (!stored || typeof stored !== 'object') {
+        return defaultChordStats();
+    }
+
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+    };
+}
+
+const chord = {
+    quality: null,
+    committed: false,
+    playedNotes: [],
+    stats: loadChordStats(),
+};
+
+const chordAdvance = createAutoAdvance('.chord-refresh', () => {
+    newChordTrial(true);
+});
+
+function cancelChordAdvance() {
+    chordAdvance.cancel();
+}
+
+function scheduleChordAdvance() {
+    chordAdvance.schedule();
+}
+
+function enabledChordQualities() {
+    return [...document.querySelectorAll('[data-chord-quality]')]
+        .filter((button) => button.getAttribute('aria-pressed') === 'true')
+        .map((button) => button.dataset.chordQuality);
+}
+
+function changeChordQuality(button) {
+    const selected = button.getAttribute('aria-pressed') === 'true';
+
+    button.setAttribute('aria-pressed', String(!selected));
+    newChordTrial();
+}
+
+function renderChordAnswers(selected = null, answersEnabled = false) {
+    const buttons = enabledChordQualities().map((quality) => {
+        const button = document.createElement('button');
+
+        button.type = 'button';
+        button.className = 'answer-option';
+        button.dataset.chordAnswer = quality;
+        button.textContent = quality[0].toUpperCase() + quality.slice(1);
+        button.disabled = chord.committed || !answersEnabled;
+
+        if (selected !== null) {
+            if (quality === chord.quality) {
+                button.classList.add(
+                    quality === selected ? 'is-correct' : 'is-target'
+                );
+            } else if (quality === selected) {
+                button.classList.add('is-incorrect');
+            }
+        }
+
+        return button;
+    });
+
+    document.querySelector('[data-chord-answers]').replaceChildren(...buttons);
+}
+
+function clearChordResult() {
+    clearPracticeResult('chord-result');
+}
+
+function newChordTrial(playImmediately = false) {
+    cancelChordAdvance();
+    stopAllAudio();
+
+    const qualities = enabledChordQualities();
+
+    chord.quality =
+        qualities.length > 0
+            ? qualities[Math.floor(Math.random() * qualities.length)]
+            : null;
+    chord.committed = false;
+    chord.playedNotes = [];
+
+    clearChordResult();
+    renderChordAnswers();
+
+    if (playImmediately) {
+        playChordTrial();
+    }
+}
+
+function playChordTrial() {
+    if (!chord.quality) {
+        newChordTrial();
+
+        if (!chord.quality) {
+            return;
+        }
+    }
+
+    stopAllAudio();
+
+    const rootMidi = Number(getNote('chords').value);
+    const rootHz = midiFrequency(rootMidi);
+    const waveform = getWaveform('chords').value;
+    const ascending = getControl('chord-playback').value === 'ascending';
+
+    chord.playedNotes = CHORD_QUALITIES[chord.quality].map(
+        (semitones) => rootMidi + semitones
+    );
+
+    CHORD_QUALITIES[chord.quality].forEach((semitones, index) => {
+        audio.playTransient(
+            rootHz * 2 ** (semitones / 12),
+            waveform,
+            ascending ? 0.7 : 1.2,
+            0.55,
+            ascending ? index * 0.35 : 0
+        );
+    });
+
+    if (!chord.committed) {
+        renderChordAnswers(null, true);
+    }
+}
+
+function saveChordStats() {
+    storage.save(CHORD_STATS_KEY, chord.stats);
+}
+
+function renderChordStats() {
+    const accuracy =
+        chord.stats.trials > 0
+            ? (chord.stats.correct / chord.stats.trials) * 100
+            : 0;
+
+    getOutput('chord-streak').textContent = String(chord.stats.streak);
+    getOutput('chord-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+}
+
+function clearChordStats() {
+    chord.stats = defaultChordStats();
+
+    storage.remove(CHORD_STATS_KEY);
+
+    renderChordStats();
+}
+
+function commitChord(quality) {
+    if (chord.committed || !CHORD_QUALITIES[quality]) {
+        return;
+    }
+
+    audio.stopTransient();
+    chord.committed = true;
+
+    const correct = quality === chord.quality;
+
+    chord.stats.trials += 1;
+    chord.stats.correct += correct ? 1 : 0;
+    chord.stats.streak = correct ? chord.stats.streak + 1 : 0;
+
+    saveChordStats();
+    renderChordStats();
+    renderChordAnswers(quality, true);
+
+    renderPracticeResult(
+        'chord-result',
+        correct,
+        `${chord.quality[0].toUpperCase()}${chord.quality.slice(1)}`
+    );
+
+    const playedNotes = document.createElement('div');
+
+    playedNotes.className = 'chord-played-notes';
+    playedNotes.textContent = `Notes: ${chord.playedNotes
+        .map(midiToNoteName)
+        .join(', ')}`;
+    getOutput('chord-result').append(playedNotes);
+
+    scheduleChordAdvance();
 }
 
 // Events
