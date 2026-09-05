@@ -224,6 +224,30 @@ select {
     gap: 22px;
 }
 
+.tabs-picker {
+    display: none;
+}
+
+.tabs.is-overflowing {
+    overflow-x: visible;
+}
+
+.tabs.is-overflowing .tabs-inner {
+    display: none;
+}
+
+.tabs.is-overflowing .tabs-picker {
+    display: block;
+
+    padding-block: 6px;
+}
+
+.tabs.is-overflowing .tabs-picker select {
+    width: 100%;
+
+    padding-inline: 10px;
+}
+
 .tab {
     height: 38px;
 

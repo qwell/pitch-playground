@@ -641,6 +641,9 @@ function updateNoteReadouts() {
 
 function activateTab(button, focus = false, updateUrl = true) {
     const tabName = button.dataset.tab;
+    const sectionPicker = document.querySelector(
+        '[data-control="section-picker"]'
+    );
 
     if (
         tabName !== 'pitch-memory' &&
@@ -665,6 +668,8 @@ function activateTab(button, focus = false, updateUrl = true) {
         panel.hidden = panel.dataset.panel !== tabName;
     }
 
+    sectionPicker.value = tabName;
+
     stopAllAudio();
     cancelPlacementAdvance();
     cancelPickAdvance();
@@ -681,6 +686,25 @@ function activateTab(button, focus = false, updateUrl = true) {
 
 function initializeTabs() {
     const tabs = [...document.querySelectorAll('.tab')];
+    const tabNavigation = document.querySelector('.tabs');
+    const tabList = document.querySelector('.tabs-inner');
+    const sectionPicker = document.querySelector(
+        '[data-control="section-picker"]'
+    );
+    const requiredTabWidth = tabList.scrollWidth;
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+        const pageGutters = window.matchMedia('(max-width: 560px)').matches
+            ? 16
+            : 28;
+
+        tabNavigation.classList.toggle(
+            'is-overflowing',
+            entry.contentRect.width - pageGutters < requiredTabWidth
+        );
+    });
+
+    resizeObserver.observe(tabNavigation);
 
     function activateHashTab() {
         const hash = window.location.hash.slice(1);
@@ -729,6 +753,16 @@ function initializeTabs() {
 
             activateTab(tabs[nextIndex], true);
         });
+    });
+
+    sectionPicker.addEventListener('change', () => {
+        const tab = tabs.find(
+            (candidate) => candidate.dataset.tab === sectionPicker.value
+        );
+
+        if (tab) {
+            activateTab(tab);
+        }
     });
 
     window.addEventListener('hashchange', activateHashTab);
