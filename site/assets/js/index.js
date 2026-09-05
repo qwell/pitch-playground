@@ -38,6 +38,7 @@ const METRONOME_METERS = {
 
 const PICK_STATS_KEY = '440Lab.pickStats.v7';
 const PLACEMENT_STATS_KEY = '440Lab.placementStats.v1';
+const INTERVAL_STATS_KEY = '440Lab.intervalStats.v1';
 const CHORD_STATS_KEY = '440Lab.chordStats.v1';
 const PITCH_MEMORY_RESULTS_KEY = '440Lab.pitchMemoryResults.v1';
 const PITCH_MEMORY_TRIAL_KEY = '440Lab.pitchMemoryTrial.v1';
@@ -73,6 +74,28 @@ const CHORD_QUALITIES = {
     minor: [0, 3, 7],
     diminished: [0, 3, 6],
     augmented: [0, 4, 8],
+};
+
+const INTERVALS = [
+    { semitones: 0, name: 'Unison', shortName: 'Unison' },
+    { semitones: 1, name: 'Minor second', shortName: 'Minor 2nd' },
+    { semitones: 2, name: 'Major second', shortName: 'Major 2nd' },
+    { semitones: 3, name: 'Minor third', shortName: 'Minor 3rd' },
+    { semitones: 4, name: 'Major third', shortName: 'Major 3rd' },
+    { semitones: 5, name: 'Perfect fourth', shortName: 'Perfect 4th' },
+    { semitones: 6, name: 'Tritone' },
+    { semitones: 7, name: 'Perfect fifth', shortName: 'Perfect 5th' },
+    { semitones: 8, name: 'Minor sixth', shortName: 'Minor 6th' },
+    { semitones: 9, name: 'Major sixth', shortName: 'Major 6th' },
+    { semitones: 10, name: 'Minor seventh', shortName: 'Minor 7th' },
+    { semitones: 11, name: 'Major seventh', shortName: 'Major 7th' },
+    { semitones: 12, name: 'Octave', shortName: 'Octave' },
+];
+
+const INTERVAL_LEVELS = {
+    starter: [0, 4, 7, 12],
+    common: [0, 2, 3, 4, 5, 7, 9, 12],
+    all: INTERVALS.map(({ semitones }) => semitones),
 };
 
 function clamp(value, minimum, maximum) {
@@ -673,6 +696,7 @@ function activateTab(button, focus = false, updateUrl = true) {
     stopAllAudio();
     cancelPlacementAdvance();
     cancelPickAdvance();
+    cancelIntervalAdvance();
     cancelChordAdvance();
 
     if (updateUrl && window.location.hash !== `#${tabName}`) {
@@ -2742,6 +2766,208 @@ function commitPick(index) {
     schedulePickAdvance();
 }
 
+// Intervals
+
+function defaultIntervalStats() {
+    return {
+        streak: 0,
+        trials: 0,
+        correct: 0,
+    };
+}
+
+function loadIntervalStats() {
+    const stored = storage.load(INTERVAL_STATS_KEY, null);
+
+    if (!stored || typeof stored !== 'object') {
+        return defaultIntervalStats();
+    }
+
+    return {
+        streak: Number.isFinite(stored.streak) ? stored.streak : 0,
+        trials: Number.isFinite(stored.trials) ? stored.trials : 0,
+        correct: Number.isFinite(stored.correct) ? stored.correct : 0,
+    };
+}
+
+const interval = {
+    trial: null,
+    stats: loadIntervalStats(),
+};
+
+const intervalAdvance = createAutoAdvance('.interval-refresh', () => {
+    newIntervalTrial(true);
+});
+
+function cancelIntervalAdvance() {
+    intervalAdvance.cancel();
+}
+
+function scheduleIntervalAdvance() {
+    intervalAdvance.schedule();
+}
+
+function enabledIntervals() {
+    const level = getControl('interval-level').value;
+    const enabledSemitones = INTERVAL_LEVELS[level] || INTERVAL_LEVELS.starter;
+
+    return INTERVALS.filter(({ semitones }) =>
+        enabledSemitones.includes(semitones)
+    );
+}
+
+function renderIntervalAnswers(selected = null, enabled = false) {
+    const answerSemitones = interval.trial?.answerSemitones || [];
+    const buttons = answerSemitones.map((semitones) => {
+        const answer = INTERVALS.find(
+            (candidate) => candidate.semitones === semitones
+        );
+        const button = document.createElement('button');
+
+        button.type = 'button';
+        button.className = 'answer-option';
+        button.dataset.intervalAnswer = String(answer.semitones);
+        button.textContent = answer.shortName || answer.name;
+        button.setAttribute('aria-label', answer.name);
+        button.disabled = interval.trial?.committed || !enabled;
+
+        if (selected !== null) {
+            if (answer.semitones === interval.trial.semitones) {
+                button.classList.add(
+                    answer.semitones === selected ? 'is-correct' : 'is-target'
+                );
+            } else if (answer.semitones === selected) {
+                button.classList.add('is-incorrect');
+            }
+        }
+
+        return button;
+    });
+
+    document
+        .querySelector('[data-interval-answers]')
+        .replaceChildren(...buttons);
+}
+
+function clearIntervalResult() {
+    clearPracticeResult('interval-result');
+}
+
+function newIntervalTrial(playImmediately = false) {
+    cancelIntervalAdvance();
+    stopAllAudio();
+
+    const choices = enabledIntervals();
+    const target = choices[Math.floor(Math.random() * choices.length)];
+    const distractors = shuffle(
+        choices.filter((candidate) => candidate !== target)
+    ).slice(0, 3);
+    const answerSemitones = shuffle([...distractors, target]).map(
+        ({ semitones }) => semitones
+    );
+    const directionControl = getControl('interval-direction').value;
+    const ascending =
+        directionControl === 'random'
+            ? Math.random() < 0.5
+            : directionControl === 'ascending';
+    const rootMidi = ascending
+        ? 48 + Math.floor(Math.random() * 24)
+        : 60 + Math.floor(Math.random() * 24);
+
+    interval.trial = {
+        semitones: target.semitones,
+        answerSemitones,
+        rootMidi,
+        targetMidi: rootMidi + (ascending ? 1 : -1) * target.semitones,
+        committed: false,
+        played: false,
+    };
+
+    clearIntervalResult();
+    renderIntervalAnswers();
+
+    if (playImmediately) {
+        playIntervalTrial();
+    }
+}
+
+function playIntervalTrial() {
+    if (!interval.trial) {
+        newIntervalTrial();
+    }
+
+    cancelIntervalAdvance();
+    stopAllAudio();
+
+    const trial = interval.trial;
+    const duration = readNumber(getControl('interval-duration'), 0.7);
+    const waveform = getWaveform('interval').value;
+
+    audio.playTransient(midiFrequency(trial.rootMidi), waveform, duration);
+    audio.playTransient(
+        midiFrequency(trial.targetMidi),
+        waveform,
+        duration,
+        1,
+        duration + 0.15
+    );
+
+    trial.played = true;
+
+    if (!trial.committed) {
+        renderIntervalAnswers(null, true);
+    }
+}
+
+function renderIntervalStats() {
+    const { streak, trials, correct } = interval.stats;
+    const accuracy = trials > 0 ? (correct / trials) * 100 : 0;
+
+    getOutput('interval-streak').textContent = String(streak);
+    getOutput('interval-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+}
+
+function clearIntervalStats() {
+    interval.stats = defaultIntervalStats();
+    storage.remove(INTERVAL_STATS_KEY);
+    renderIntervalStats();
+}
+
+function commitInterval(semitones) {
+    const trial = interval.trial;
+
+    if (!trial || !trial.played || trial.committed) {
+        return;
+    }
+
+    audio.stopTransient();
+    trial.committed = true;
+
+    const correct = semitones === trial.semitones;
+    const correctInterval = INTERVALS.find(
+        (candidate) => candidate.semitones === trial.semitones
+    );
+
+    interval.stats.trials += 1;
+    interval.stats.correct += correct ? 1 : 0;
+    interval.stats.streak = correct ? interval.stats.streak + 1 : 0;
+
+    storage.save(INTERVAL_STATS_KEY, interval.stats);
+    renderIntervalStats();
+    renderIntervalAnswers(semitones, true);
+    renderPracticeResult('interval-result', correct, correctInterval.name);
+
+    const playedNotes = document.createElement('div');
+
+    playedNotes.className = 'interval-played-notes';
+    playedNotes.textContent =
+        `${midiToNoteName(trial.rootMidi)} → ` +
+        midiToNoteName(trial.targetMidi);
+    getOutput('interval-result').append(playedNotes);
+
+    scheduleIntervalAdvance();
+}
+
 // Chord quality
 
 function defaultChordStats() {
@@ -2946,6 +3172,7 @@ function commitChord(quality) {
 function resetForReferenceChange() {
     stopGeneratedAudio();
     cancelPlacementAdvance();
+    cancelIntervalAdvance();
 
     resetTunerTracking(true);
 
@@ -2953,6 +3180,7 @@ function resetForReferenceChange() {
 
     newPlacementTrial();
     newPickSet();
+    newIntervalTrial();
 }
 
 function initializeEvents() {
@@ -2993,6 +3221,12 @@ function initializeEvents() {
         updateNoteReadout(event.currentTarget);
         newChordTrial();
     });
+
+    for (const control of getControls('interval-level', 'interval-direction')) {
+        control.addEventListener('change', () => {
+            newIntervalTrial();
+        });
+    }
 
     for (const control of getControls(
         'placement-range-min',
@@ -3040,6 +3274,10 @@ function initializeEvents() {
         normalizeNumberInput(event.currentTarget, 1);
     });
 
+    getControl('interval-duration').addEventListener('change', (event) => {
+        normalizeNumberInput(event.currentTarget, 0.7);
+    });
+
     getAction('reset-a4').addEventListener('click', () => {
         getControl('a4').value = DEFAULT_A4.toFixed(3);
 
@@ -3058,11 +3296,27 @@ function initializeEvents() {
 
     getAction('new-pick').addEventListener('click', newPickSet);
 
+    getAction('play-interval').addEventListener('click', playIntervalTrial);
+
+    getAction('new-interval').addEventListener('click', () => {
+        newIntervalTrial(true);
+    });
+
     getAction('play-chord').addEventListener('click', playChordTrial);
 
     getAction('new-chord').addEventListener('click', () => {
         newChordTrial(true);
     });
+
+    document
+        .querySelector('[data-interval-answers]')
+        .addEventListener('click', (event) => {
+            const button = event.target.closest('[data-interval-answer]');
+
+            if (button) {
+                commitInterval(Number(button.dataset.intervalAnswer));
+            }
+        });
 
     document
         .querySelector('[data-chord-answers]')
@@ -3163,6 +3417,7 @@ function initializeEvents() {
             stopAllAudio();
             cancelPlacementAdvance();
             cancelPickAdvance();
+            cancelIntervalAdvance();
             cancelChordAdvance();
         });
     }
@@ -3201,6 +3456,11 @@ function initializeEvents() {
 
     getAction('clear-pick-stats').addEventListener('click', clearPickStats);
 
+    getAction('clear-interval-stats').addEventListener(
+        'click',
+        clearIntervalStats
+    );
+
     getAction('clear-chord-stats').addEventListener('click', clearChordStats);
 }
 
@@ -3223,9 +3483,11 @@ function initialize() {
 
     newPlacementTrial();
     newPickSet();
+    newIntervalTrial();
     newChordTrial();
 
     renderPickStats();
+    renderIntervalStats();
     renderChordStats();
     updatePitchMemoryControls();
     renderPitchMemoryResponseFrequency();
@@ -3239,6 +3501,7 @@ window.addEventListener('beforeunload', () => {
     stopAllAudio();
     cancelPlacementAdvance();
     cancelPickAdvance();
+    cancelIntervalAdvance();
     cancelChordAdvance();
     clearPitchMemoryTimers();
 

@@ -535,6 +535,13 @@ main {
         'stats stats';
 }
 
+.intervals-practice {
+    grid-template-areas:
+        'actions .'
+        'answers result'
+        'stats stats';
+}
+
 .chord-quality-practice {
     grid-template-areas:
         'actions .'
@@ -722,7 +729,9 @@ main {
 
 .action-button-grid [data-action='play-tuner'],
 .action-button-grid [data-action='play-metronome'],
-.action-button-grid [data-action='play-placement'] {
+.action-button-grid [data-action='play-placement'],
+.action-button-grid [data-action='play-interval'],
+.action-button-grid [data-action='play-chord'] {
     grid-column: 1;
 }
 
@@ -733,7 +742,9 @@ main {
 .action-button-grid [data-action='toggle-tuner-mic'],
 .action-button-grid [data-action='tap-tempo'],
 .action-button-grid [data-action='new-placement'],
-.action-button-grid [data-action='new-pick'] {
+.action-button-grid [data-action='new-pick'],
+.action-button-grid [data-action='new-interval'],
+.action-button-grid [data-action='new-chord'] {
     grid-column: 3;
 }
 
@@ -1182,8 +1193,57 @@ main {
     color: var(--correct);
 }
 
-/* Chord quality */
+/* Intervals */
 
+.interval-guide {
+    width: min(430px, 100%);
+
+    margin-top: 10px;
+
+    color: #bbb;
+}
+
+.interval-guide summary {
+    width: max-content;
+
+    color: var(--text);
+    cursor: pointer;
+}
+
+.interval-guide p {
+    margin: 8px 0;
+
+    line-height: 1.4;
+}
+
+.interval-guide-table {
+    width: 100%;
+
+    border-collapse: collapse;
+}
+
+.interval-guide-table th,
+.interval-guide-table td {
+    padding: 4px 7px;
+
+    border: 1px solid var(--border);
+
+    text-align: left;
+}
+
+.interval-guide-table th {
+    font-weight: 600;
+}
+
+.interval-guide-table td:nth-child(2) {
+    color: var(--muted);
+}
+
+.interval-guide-table td:last-child {
+    white-space: nowrap;
+}
+
+.interval-answers,
 .chord-answers {
     grid-area: answers;
 
@@ -1196,17 +1256,34 @@ main {
     gap: var(--button-gap);
 }
 
+.interval-answers button {
+    min-width: 0;
+
+    padding-inline: 7px;
+}
+
+.interval-result,
 .chord-result {
     grid-area: result;
 
     font-size: 13px;
-    white-space: nowrap;
 }
 
+.interval-result {
+    align-self: start;
+}
+
+.interval-played-notes,
 .chord-played-notes {
     margin-top: 4px;
 
     color: var(--text);
+}
+
+/* Chord quality */
+
+.chord-result {
+    white-space: nowrap;
 }
 
 /* Footer */

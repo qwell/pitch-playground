@@ -1,6 +1,6 @@
 # 440 Lab
 
-A small browser-based music and ear-training tool for practicing pitch, intonation, tuning, rhythm, chord quality, and pitch memory using the Web Audio API.
+A small browser-based music and ear-training tool for practicing pitch, intervals, intonation, tuning, rhythm, chord quality, and pitch memory using the Web Audio API.
 
 Live demo: [https://440lab.com/](https://440lab.com/)
 
@@ -25,6 +25,7 @@ Live demo: [https://440lab.com/](https://440lab.com/)
 - Tap tempo
 - Practice identifying flat vs. sharp pitch
 - Pick the correctly tuned target from multiple candidates
+- Identify melodic intervals in ascending or descending note pairs
 - Identify major, minor, diminished, and augmented chord qualities
 - Test pitch memory after a delay or interfering tones
     - Respond with an adjustable oscillator or microphone input

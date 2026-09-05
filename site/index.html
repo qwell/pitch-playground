@@ -8,7 +8,7 @@
         <meta name="robots" content="index,follow" />
         <meta
             name="description"
-            content="Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests."
+            content="Free, ad-free online tuner, metronome, reference-tone generator, and ear-training exercises for pitch, intervals, intonation, chord quality, and pitch memory."
         />
         <link rel="canonical" href="https://440lab.com/" />
 
@@ -21,7 +21,7 @@
         />
         <meta
             property="og:description"
-            content="Free, ad-free tools for musical tuning, rhythm, ear training including chord quality, and pitch-memory testing."
+            content="Free, ad-free tools for musical tuning, rhythm, interval and chord ear training, and pitch-memory testing."
         />
         <meta property="og:url" content="https://440lab.com/" />
         <meta property="og:type" content="website" />
@@ -104,19 +104,19 @@
                         "@id": "https://440lab.com/#website",
                         "url": "https://440lab.com/",
                         "name": "440 Lab",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and ear-training exercises for pitch, intervals, intonation, chord quality, and pitch memory.",
                         "publisher": {
                             "@id": "https://440lab.com/#jeltz"
                         },
                         "datePublished": "2026-08-25",
-                        "dateModified": "2026-08-31"
+                        "dateModified": "2026-09-05"
                     },
                     {
                         "@type": "WebPage",
                         "@id": "https://440lab.com/#webpage",
                         "url": "https://440lab.com/",
                         "name": "440 Lab",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and ear-training exercises for pitch, intervals, intonation, chord quality, and pitch memory.",
                         "isPartOf": {
                             "@id": "https://440lab.com/#website"
                         },
@@ -137,6 +137,9 @@
                                 "@id": "https://440lab.com/#pick-target"
                             },
                             {
+                                "@id": "https://440lab.com/#intervals"
+                            },
+                            {
                                 "@id": "https://440lab.com/#chord-quality"
                             },
                             {
@@ -150,7 +153,7 @@
                             "@id": "https://440lab.com/#jeltz"
                         },
                         "datePublished": "2026-08-25",
-                        "dateModified": "2026-08-31"
+                        "dateModified": "2026-09-05"
                     },
                     {
                         "@type": "WebPageElement",
@@ -208,6 +211,15 @@
                     },
                     {
                         "@type": "WebPageElement",
+                        "@id": "https://440lab.com/#intervals",
+                        "name": "Intervals",
+                        "description": "Ear-training exercise for identifying melodic intervals by their pitch distance.",
+                        "isPartOf": {
+                            "@id": "https://440lab.com/#webpage"
+                        }
+                    },
+                    {
+                        "@type": "WebPageElement",
                         "@id": "https://440lab.com/#chord-quality",
                         "name": "Chord Quality",
                         "description": "Ear-training exercise for identifying major, minor, diminished, and augmented triad qualities.",
@@ -220,7 +232,7 @@
                         "@id": "https://440lab.com/#app",
                         "url": "https://440lab.com/",
                         "name": "440 Lab",
-                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, ear-training exercises for pitch, intonation, and chord quality, plus pitch-memory tests.",
+                        "description": "Free, ad-free online tuner, metronome, reference-tone generator, and ear-training exercises for pitch, intervals, intonation, chord quality, and pitch memory.",
                         "softwareVersion": "1.1.3",
                         "mainEntityOfPage": {
                             "@id": "https://440lab.com/#webpage"
@@ -252,6 +264,10 @@
                             },
                             {
                                 "@type": "DefinedTerm",
+                                "name": "Musical intervals"
+                            },
+                            {
+                                "@type": "DefinedTerm",
                                 "name": "Chord quality"
                             },
                             {
@@ -261,7 +277,7 @@
                         ],
                         "inLanguage": "en",
                         "applicationCategory": "EducationalApplication",
-                        "applicationSubCategory": "Music tuner, metronome, pitch training, chord ear training, and pitch-memory testing",
+                        "applicationSubCategory": "Music tuner, metronome, pitch and interval training, chord ear training, and pitch-memory testing",
                         "learningResourceType": "Interactive music training application",
                         "teaches": [
                             "Pitch matching",
@@ -270,6 +286,7 @@
                             "Intonation",
                             "Relative pitch",
                             "Tuning by ear",
+                            "Melodic interval identification",
                             "Chord-quality recognition",
                             "Major, minor, diminished, and augmented triad identification",
                             "Absolute-frequency memory"
@@ -279,6 +296,7 @@
                             "Recognizing flat and sharp intonation",
                             "Target-pitch identification",
                             "Intonation accuracy",
+                            "Melodic interval identification",
                             "Chord-quality recognition",
                             "Triad identification",
                             "Absolute pitch memory",
@@ -376,6 +394,7 @@
                             "tap tempo",
                             "ear training",
                             "pitch training",
+                            "interval ear training",
                             "intonation training",
                             "pitch placement",
                             "relative pitch",
@@ -412,6 +431,7 @@
                             "Metronome",
                             "Flat and sharp pitch-placement ear training",
                             "Target-pitch identification exercises",
+                            "Melodic interval ear training",
                             "Major, minor, diminished, and augmented chord-quality identification",
                             "Generated-tone absolute pitch-memory tests",
                             "Interference-resistant pitch-memory tests",
@@ -606,6 +626,19 @@
                 </button>
 
                 <button
+                    id="tab-intervals"
+                    class="tab"
+                    data-tab="intervals"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-intervals"
+                    tabindex="-1"
+                >
+                    Intervals
+                </button>
+
+                <button
                     id="tab-chord-quality"
                     class="tab"
                     data-tab="chord-quality"
@@ -628,6 +661,7 @@
                     <option value="pitch-placement">Pitch Placement</option>
                     <option value="pitch-memory">Pitch Memory</option>
                     <option value="pick-target">Pick Target</option>
+                    <option value="intervals">Intervals</option>
                     <option value="chord-quality">Chord Quality</option>
                 </select>
             </div>
@@ -660,10 +694,11 @@
                     <h4>Pitch and intonation ear training</h4>
                     <p>
                         Practice hearing small differences in pitch and
-                        recognizing whether a note is sharp or flat. The
-                        exercises are intended to develop pitch discrimination
-                        and a more accurate sense of intonation without
-                        requiring perfect pitch.
+                        recognizing whether a note is sharp or flat, or learn to
+                        identify the distance between two notes. The exercises
+                        are intended to develop pitch discrimination, interval
+                        recognition, and a more accurate sense of intonation
+                        without requiring perfect pitch.
                     </p>
 
                     <h4>Metronome and rhythm practice</h4>
@@ -1875,6 +1910,238 @@
                         <div>
                             <dt>Mean error</dt>
                             <dd data-output="pick-mean-error">0.0 cents</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <!-- Intervals -->
+            <section
+                id="panel-intervals"
+                class="tab-panel"
+                data-panel="intervals"
+                role="tabpanel"
+                aria-labelledby="tab-intervals"
+                hidden
+            >
+                <h2 class="sr-only">Intervals</h2>
+                <h3 class="blurb">
+                    Hear two notes and identify the size of the pitch jump.
+                </h3>
+
+                <details class="interval-guide">
+                    <summary>What do these mean?</summary>
+                    <p>
+                        An interval is the distance between two notes. One
+                        semitone is one piano-key step, including black keys.
+                        The distance stays the same when the notes start
+                        somewhere else or move downward. Some pitches have two
+                        names, such as F♯ and G♭. The interval determines which
+                        name is normally written, even though the sound is the
+                        same; a tritone can use either name.
+                    </p>
+                    <table class="interval-guide-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Interval</th>
+                                <th scope="col">Steps</th>
+                                <th scope="col">Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Unison</th>
+                                <td>0</td>
+                                <td>C → C</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Minor 2nd</th>
+                                <td>1</td>
+                                <td>C → D♭</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Major 2nd</th>
+                                <td>2</td>
+                                <td>C → D</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Minor 3rd</th>
+                                <td>3</td>
+                                <td>C → E♭</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Major 3rd</th>
+                                <td>4</td>
+                                <td>C → E</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Perfect 4th</th>
+                                <td>5</td>
+                                <td>C → F</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Tritone</th>
+                                <td>6</td>
+                                <td>C → F♯ / G♭</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Perfect 5th</th>
+                                <td>7</td>
+                                <td>C → G</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Minor 6th</th>
+                                <td>8</td>
+                                <td>C → A♭</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Major 6th</th>
+                                <td>9</td>
+                                <td>C → A</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Minor 7th</th>
+                                <td>10</td>
+                                <td>C → B♭</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Major 7th</th>
+                                <td>11</td>
+                                <td>C → B</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Octave</th>
+                                <td>12</td>
+                                <td>C → next C</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </details>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="interval-level">Interval set</label>
+                        <div class="control-row">
+                            <select
+                                id="interval-level"
+                                data-control="interval-level"
+                            >
+                                <option value="starter" selected>
+                                    starter — 4
+                                </option>
+                                <option value="common">common — 8</option>
+                                <option value="all">all — 13</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="interval-direction">Direction</label>
+                        <div class="control-row">
+                            <select
+                                id="interval-direction"
+                                data-control="interval-direction"
+                            >
+                                <option value="random" selected>random</option>
+                                <option value="ascending">ascending</option>
+                                <option value="descending">descending</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="interval-waveform">Wave type</label>
+                        <div class="control-row">
+                            <select
+                                id="interval-waveform"
+                                class="waveform-select"
+                                data-waveform="interval"
+                            >
+                                <option value="sine" selected>sine</option>
+                                <option value="triangle">triangle</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="interval-duration">
+                            Note duration (seconds)
+                        </label>
+                        <div class="control-row">
+                            <input
+                                id="interval-duration"
+                                data-control="interval-duration"
+                                type="number"
+                                min="0.1"
+                                max="3"
+                                step="0.1"
+                                value="0.7"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="practice intervals-practice">
+                    <div class="action-button-grid">
+                        <button
+                            class="icon-button"
+                            data-action="play-interval"
+                            type="button"
+                            aria-label="Play interval"
+                            title="Play interval"
+                        >
+                            <span aria-hidden="true">▶</span>
+                        </button>
+                        <button
+                            class="icon-button"
+                            data-action="stop-audio"
+                            type="button"
+                            aria-label="Stop interval"
+                            title="Stop"
+                        >
+                            <span aria-hidden="true">■</span>
+                        </button>
+                        <button
+                            class="icon-button interval-refresh auto-refresh"
+                            data-action="new-interval"
+                            type="button"
+                            aria-label="New interval and play"
+                            title="New interval and play"
+                        >
+                            <span aria-hidden="true">↻</span>
+                        </button>
+                    </div>
+
+                    <div
+                        class="interval-answers"
+                        data-interval-answers
+                        role="group"
+                        aria-label="Interval"
+                    ></div>
+
+                    <div
+                        class="practice-result interval-result"
+                        data-output="interval-result"
+                        aria-live="polite"
+                    ></div>
+
+                    <dl class="stats practice-stats">
+                        <div class="stats-with-action">
+                            <dt>Streak</dt>
+                            <dd>
+                                <strong data-output="interval-streak">0</strong>
+                                <button
+                                    class="link-button"
+                                    data-action="clear-interval-stats"
+                                    type="button"
+                                >
+                                    Clear
+                                </button>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Accuracy</dt>
+                            <dd data-output="interval-accuracy">0%</dd>
                         </div>
                     </dl>
                 </div>
