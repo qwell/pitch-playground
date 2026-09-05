@@ -86,10 +86,6 @@ button {
     cursor: pointer;
 }
 
-button:hover:not(:disabled) {
-    background: var(--button-hover);
-}
-
 button:disabled {
     opacity: 0.42;
     cursor: default;
@@ -239,11 +235,6 @@ select {
 
     background: transparent;
     color: var(--muted);
-}
-
-.tab:hover:not(:disabled) {
-    background: transparent;
-    color: var(--text);
 }
 
 .tab.is-active {
@@ -988,11 +979,6 @@ main {
     text-decoration: underline;
 }
 
-.link-button:hover:not(:disabled) {
-    background: transparent;
-    color: #fff;
-}
-
 /* Pitch placement */
 
 .placement-judgment {
@@ -1241,6 +1227,22 @@ footer a {
 
 footer a:hover {
     text-decoration: none;
+}
+
+@media (hover: hover) {
+    button:hover:not(:disabled) {
+        background: var(--button-hover);
+    }
+
+    .tab:hover:not(:disabled) {
+        background: transparent;
+        color: var(--text);
+    }
+
+    .link-button:hover:not(:disabled) {
+        background: transparent;
+        color: #fff;
+    }
 }
 
 /* Tablet */
